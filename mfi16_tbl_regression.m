@@ -257,7 +257,7 @@ test_features (:,2:end) = bsxfun(@rdivide, ...
                                         test_features (:,2:end), ...
                                         trainmean), ...
                                  trainvar);
-%%
+
 % ML
 models   = cell(1, length(materials)+1);
 common_args = ' -q ';
@@ -284,7 +284,7 @@ for mi=1:length(materials)
     fprintf('\tout-class accuracy: %g%%\n', 100*nnz(out_pred ~= 1)/length(out_pred));
 end
 
-models{end} = svmtrain(train_features(:,1), train_features(:,2:end), '-s 1 -t 2 -n 0.6 -g 50 -q');
+models{end} = svmtrain(train_features(:,1), train_features(:,2:end), '-s 1 -t 2 -n 0.6 -g 200 -q');
 
 % evaluate by comparing all OCSVMs
 oc_confusion = zeros(length(materials));

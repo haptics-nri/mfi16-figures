@@ -47,7 +47,7 @@ function vectors = romano_features(force, pose, vibe, mass, dur, thresh)
         else
             % perceptual binning
             V_hist = zeros(1,30);
-            alpha = 0.12;
+            alpha = 25;
             for i=1:30
                 b = i*1500/30;
                 f = linspace(0, 1500, length(V_freq));

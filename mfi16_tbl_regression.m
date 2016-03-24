@@ -223,7 +223,7 @@ for mi = 1:length(materials)
         for ti = 1:length(tools)
             fprintf('Romano features for %s on %s material, rep #%s\n', tools{ti}, materials{mi}, reps{ri});
             %%
-            new_feats = romano_features(intworldsub{mi,ri,ti}, vendint{mi,ri,ti}, accint{mi,ri,ti}, mass, 0.1, [20 5]);
+            new_feats = romano_features(intworldsub{mi,ri,ti}, vendint{mi,ri,ti}, accint{mi,ri,ti}, mass, 0.05, [20 5]);
             %%
             features = [features
                         repmat(mi, size(new_feats,1), 1) new_feats];
@@ -284,22 +284,23 @@ for mi=1:length(materials)
     fprintf('\tout-class accuracy: %g%%\n', 100*nnz(out_pred ~= 1)/length(out_pred));
 end
 
-models{end} = svmtrain(train_features(:,1), train_features(:,2:end), '-s 1 -t 2 -n 0.5 -g 10 -q');
+models{end} = svmtrain(train_features(:,1), train_features(:,2:end), '-s 1 -t 2 -n 0.6 -g 50 -q');
 
 % evaluate by comparing all OCSVMs
 oc_confusion = zeros(length(materials));
 mc_confusion = zeros(length(materials));
-en_confusion = zeros(length(materials));
-for i=1:size(val_features,1)
-    prob = zeros(1,length(materials));
-    for mi=1:length(materials)
-        prob(mi) = rabaoui_dissim(models{mi}, val_features(i,2:end));
+prob = zeros(size(val_features,1),length(materials));
+for mi=1:length(materials)
+    prob(:,mi) = rabaoui_dissim(models{mi}, val_features(:,2:end));
+end
+[~, oc_answers] = min(prob, [], 2);
+mc_answers = svmpredict(zeros(size(val_features,1),1), val_features(:,2:end), models{end}, '-q');
+
+for i=1:length(materials)
+    for j=1:length(materials)
+        oc_confusion(i,j) = nnz(oc_answers(val_features(:,1)==i) == j);
+        mc_confusion(i,j) = nnz(mc_answers(val_features(:,1)==i) == j);
     end
-    [~, oc_answer] = min(prob);
-    oc_confusion(val_features(i,1), oc_answer) = oc_confusion(val_features(i,1), oc_answer) + 1;
-    
-    mc_answer = svmpredict(0, val_features(i,2:end), models{end}, '-q');
-    mc_confusion(val_features(i,1), mc_answer) = mc_confusion(val_features(i,1), mc_answer) + 1;
 end
 
 clf;

@@ -216,93 +216,137 @@ end
 
 %% SVM stuff (following Romano & KJK 2014)
 
+% DO NOT RUN THIS AGAIN -- TRAINING ON TEST SET WILL RESULT
+% instead load featuresplit20160325.mat
+
 % extract features
-features = zeros(0, 34); % first col is labels
+features = cell(0, 5); % cols: label, vibration, speed, normal, tangential
 for mi = 1:length(materials)
-    for ri = 1:length(reps)
+    for ri = 1:length(reps)/2
         for ti = 1:length(tools)
             fprintf('Romano features for %s on %s material, rep #%s\n', tools{ti}, materials{mi}, reps{ri});
             %%
-            new_feats = romano_features(intworldsub{mi,ri,ti}, vendint{mi,ri,ti}, accint{mi,ri,ti}, mass, 0.05, [20 5]);
+            new_feats = romano_features('pre', intworldsub{mi,ri,ti}, vendint{mi,ri,ti}, accint{mi,ri,ti}, mass, 0.05, [20 5]);
             %%
             features = [features
-                        repmat(mi, size(new_feats,1), 1) new_feats];
+                        num2cell(repmat(mi, size(new_feats,1), 1)) new_feats];
         end
     end
 end
 
 % test/train split
 
-% 3/5 train, 1/5 validation, 1/5 test
-split_idx = randsample(1:3, size(features,1), true, [3/5 1/5 1/5]);
+% 4/5 train, 1/5 test
+split_idx = randsample(1:2, size(features,1), true, [4/5 1/5]);
 
 train_features = features(split_idx==1, :);
-val_features   = features(split_idx==2, :);
-test_features  = features(split_idx==3, :);
+test_features  = features(split_idx==2, :);
 
-trainmean = mean(train_features(:,2:end));
-trainvar  = var (train_features(:,2:end));
-train_features(:,2:end) = bsxfun(@rdivide, ...
-                                 bsxfun(@minus, ...
-                                        train_features(:,2:end), ...
-                                        trainmean), ...
-                                 trainvar);
-val_features  (:,2:end) = bsxfun(@rdivide, ...
-                                 bsxfun(@minus, ...
-                                        val_features  (:,2:end), ...
-                                        trainmean), ...
-                                 trainvar);
-test_features (:,2:end) = bsxfun(@rdivide, ...
-                                 bsxfun(@minus, ...
-                                        test_features (:,2:end), ...
-                                        trainmean), ...
-                                 trainvar);
+%%
+% crossval
 
-% ML
-models   = cell(1, length(materials)+1);
-common_args = ' -q ';
-train_args = ['-s 2 -t 2 -n 0.8' common_args];
-test_args = common_args;
+cv = cvpartition(cell2mat(train_features(:,1)), 'KFold', 5);
+oc_confusion = cell(1, cv.NumTestSets);
+mc_confusion = cell(1, cv.NumTestSets);
+oc_answers = cell(1, cv.NumTestSets);
+mc_answers = cell(1, cv.NumTestSets);
+%%
+% hyperparameters
+nbins = [5 10 20 30 40]; % 20
+binmode = {'perceptual'};
+alpha = [0.1 1 25 100]; % 25
+nu = 0:.2:1; % .6
+gamma = [0.02 2 20 200 2000]; % 200
 
-for mi=1:length(materials)
-    fprintf('Material: %s\n', materials{mi});
-    %%
-    % normalize features
-    train_labels =  ones(nnz(train_features(:,1)==mi), 1);
-    val_labels   =  ones(nnz(val_features  (:,1)==mi), 1);
-    unval_labels = -ones(nnz(val_features  (:,1)~=mi), 1);
-    train_feats = train_features(train_features(:,1)==mi, 2:end);
-    val_feats   = val_features  (val_features  (:,1)==mi, 2:end);
-    unval_feats = val_features  (val_features  (:,1)~=mi, 2:end);
-    
-    % train SVM
-    gamma = 0.0303;%evangelista(train_feats);
-    models{mi}                    = svmtrain(  train_labels, train_feats, sprintf('%s -g %g', train_args, gamma));
-    [in_pred, in_acc, in_prob]    = svmpredict(val_labels  , val_feats  , models{mi}, test_args);
-    [out_pred, out_acc, out_prob] = svmpredict(unval_labels, unval_feats, models{mi}, test_args);
-    fprintf('\tin-class accuracy: %g%%\n' , 100*nnz(in_pred  == 1)/length(in_pred));
-    fprintf('\tout-class accuracy: %g%%\n', 100*nnz(out_pred ~= 1)/length(out_pred));
+gsn = [length(nbins) length(binmode) length(alpha) length(nu) length(gamma)];
+gsi = ones(size(gsn));
+gsl = 1;
+gsp = zeros(0, length(gsn));
+% generate gridsearch parameters
+while any(gsi < gsn)
+    gsp(end+1,:) = gsi;
+    if gsi(gsl) < gsn(gsl)
+        gsi(gsl) = gsi(gsl) + 1;
+    else
+        gsi(gsl) = 1;
+        gsl = gsl + 1;
+    end
 end
+%%
+gs_acc = zeros(prod(gsn),1);
+while any(gsi < gsn)
+    fprintf('Grid search with nbins=%d, binmode=%s, alpha=%g, nu=%g, gamma=%g\n', nbins(gsi(1)), binmode{gsi(2)}, alpha(gsi(3)), nu(gsi(4)), gamma(gsi(5)));
+    for cvi = 1:cv.NumTestSets
+        train_vectors = [cell2mat(train_features(cv.training(cvi),1)) ...
+                         romano_features('post', train_features(cv.training(cvi),2:end), nbins(gsi(1)), binmode{gsi(2)}, alpha(gsi(3)))];
+        val_vectors   = [cell2mat(train_features(cv.test(cvi),    1)) ...
+                         romano_features('post', train_features(cv.test(cvi)    ,2:end), nbins(gsi(1)), binmode{gsi(2)}, alpha(gsi(3)))];
 
-models{end} = svmtrain(train_features(:,1), train_features(:,2:end), '-s 1 -t 2 -n 0.6 -g 200 -q');
+        trainmean = mean(train_vectors(:,2:end));
+        trainvar  = var (train_vectors(:,2:end));
+        train_vectors(:,2:end) = bsxfun(@rdivide, ...
+                                        bsxfun(@minus, ...
+                                               train_vectors(:,2:end), ...
+                                               trainmean), ...
+                                        trainvar);
+        val_vectors  (:,2:end) = bsxfun(@rdivide, ...
+                                        bsxfun(@minus, ...
+                                               val_vectors  (:,2:end), ...
+                                               trainmean), ...
+                                        trainvar);
 
-% evaluate by comparing all OCSVMs
-oc_confusion = zeros(length(materials));
-mc_confusion = zeros(length(materials));
-prob = zeros(size(val_features,1),length(materials));
-for mi=1:length(materials)
-    prob(:,mi) = rabaoui_dissim(models{mi}, val_features(:,2:end));
-end
-[~, oc_answers] = min(prob, [], 2);
-mc_answers = svmpredict(zeros(size(val_features,1),1), val_features(:,2:end), models{end}, '-q');
+        models = cell(5, ... % vibration, speed+normal, normal+tangential, speed+normal+tangential, all
+                      length(materials)+1); % OC models for each materials, one MC model
+        common_args = ' -q ';
+        %oc_train_args = ['-s 2 -t 2 -n 0.0303' common_args];
+        mc_train_args = [sprintf('-s 1 -t 2 -n %g -g %g', nu(gsi(4)), gamma(gsi(5))) common_args];
+        test_args = common_args;
 
-for i=1:length(materials)
-    for j=1:length(materials)
-        oc_confusion(i,j) = nnz(oc_answers(val_features(:,1)==i) == j);
-        mc_confusion(i,j) = nnz(mc_answers(val_features(:,1)==i) == j);
+        %for mi=1:length(materials)
+        %    fprintf('Material: %s\n', materials{mi});
+        %    %%
+        %    % normalize features
+        %    train_labels =  ones(nnz(train_vectors(:,1)==mi), 1);
+        %    val_labels   =  ones(nnz(val_vectors  (:,1)==mi), 1);
+        %    unval_labels = -ones(nnz(val_vectors  (:,1)~=mi), 1);
+        %    train_feats = train_vectors(train_vectors(:,1)==mi, 2:end);
+        %    val_feats   = val_vectors  (val_vectors  (:,1)==mi, 2:end);
+        %    unval_feats = val_vectors  (val_vectors  (:,1)~=mi, 2:end);
+        %
+        %    % train SVM
+        %    gamma = 0.0303;%evangelista(train_feats);
+        %    models{mi}                    = svmtrain(  train_labels, train_feats, sprintf('%s -g %g', train_args, gamma));
+        %    [in_pred, in_acc, in_prob]    = svmpredict(val_labels  , val_feats  , models{mi}, test_args);
+        %    [out_pred, out_acc, out_prob] = svmpredict(unval_labels, unval_feats, models{mi}, test_args);
+        %    fprintf('\tin-class accuracy: %g%%\n' , 100*nnz(in_pred  == 1)/length(in_pred));
+        %    fprintf('\tout-class accuracy: %g%%\n', 100*nnz(out_pred ~= 1)/length(out_pred));
+        %end
+
+        models{end} = svmtrain(train_vectors(:,1), train_vectors(:,2:end), mc_train_args);
+
+        % evaluate by comparing all OCSVMs and the MCSVM
+        %oc_confusion{cvi} = zeros(length(materials));
+        mc_confusion{cvi} = zeros(length(materials));
+        %prob = zeros(size(val_vectors,1),length(materials));
+        %for mi=1:length(materials)
+        %    prob(:,mi) = rabaoui_dissim(models{mi}, val_vectors(:,2:end));
+        %end
+        %[~, oc_answers{cvi}] = min(prob, [], 2);
+        mc_answers{cvi} = svmpredict(zeros(size(val_vectors,1),1), val_vectors(:,2:end), models{end}, '-q');
+
+        for i=1:length(materials)
+            for j=1:length(materials)
+        %        oc_confusion{cvi}(i,j) = nnz(oc_answers{cvi}(val_vectors(:,1)==i) == j);
+                mc_confusion{cvi}(i,j) = nnz(mc_answers{cvi}(val_vectors(:,1)==i) == j);
+            end
+        end
+
+        fprintf('\tFold %d: MC %g%%\n', cvi, ...
+                                        100*sum(diag(mc_confusion{cvi}))/sum(sum(mc_confusion{cvi})));
     end
 end
 
+%%
 clf;
 subplot(1,2,1);
 bar3(mc_confusion);

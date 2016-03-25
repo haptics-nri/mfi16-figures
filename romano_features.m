@@ -1,6 +1,35 @@
-% produces Nx33 feature vector following Romano & KJK 2014
+% produces Nx33ish feature vector loosely-following Romano & KJK 2014
 % N is the number of chunks found ("dur" ms each, at least thresh(1) speed, thresh(2) normal force)
-function vectors = romano_features(force, pose, vibe, mass, dur, thresh)
+%
+% works in two phases selected by 'mode'
+% this is to allow tuning the hyperparameters after performing train/test split
+%   pre: produces a cell array with unbinned vibration and unaveraged speed/force
+%       force  = 3D force with timestamps (synchronized) (taps included)
+%       pose   = 3D position/orientation with timestamps (synchronized) (taps included)
+%       vibe   = 3D acceleration with timestamps (synchronized) (taps included)
+%       mass   = mass of end-effector
+%       dur    = duration of chunks (seconds)
+%       thresh = [speed_thresh force_thresh] - no chunks will come from
+%                   periods of time with speed less than speed_thresh or total force
+%                   magnitude less than force_thresh
+%   post: bins the vibration and averages the speed/force to produce the actual feature vector
+%       cells   = the output of pre
+%       nbins   = number of bins for acceleration
+%       binmode = 'naive' or 'perceptual' (see paper)
+%       alpha   = perceptual bin tuning thing (see paper)
+
+function varargout = romano_features(mode, varargin)
+    switch mode
+        case 'pre'
+            varargout{:} = romano_features_pre(varargin{:});
+        case 'post'
+            varargout{:} = romano_features_post(varargin{:});
+        otherwise
+            error('Unsupported mode')
+    end
+end
+
+function cells = romano_features_pre(force, pose, vibe, mass, dur, thresh)
 
     % 1. preprocessing
 
@@ -27,36 +56,49 @@ function vectors = romano_features(force, pose, vibe, mass, dur, thresh)
         end
     end
     
+    cells = cell(size(chunks,1), 3);
+    for c=1:size(chunks,1)
+        cells{c,1} = vibe(chunks(c,1):chunks(c,2), :);
+        cells{c,2} = speed(chunks(c,1):chunks(c,2));
+        cells{c,3} = forcefiltsub(chunks(c,1):chunks(c,2), :);
+    end
+    
+end
+   
+function vectors = romano_features_post(cells, nbins, binmode, alpha)
     % 3. process each chunk
     
-    vectors = zeros(size(chunks,1), 33);
+    %nbins = 20;
+    vectors = zeros(size(cells,1), nbins+3);
     
-    for c=1:size(chunks,1)
-        F = forcefiltsub(chunks(c,1):chunks(c,2), :);
-        S = speed(chunks(c,1):chunks(c,2));
-        V = vibe(chunks(c,1):chunks(c,2), :);
+    for c=1:size(cells,1)
+        V = cells{c,1};
+        S = cells{c,2};
+        F = cells{c,3};
         
         % condense and bin the vibration
         [~, V_freq] = dft321(V);
         
-        if false
-            % naive binning
-            highfreq = 1000;
-            centers = linspace(highfreq/30, highfreq, 31);
-            V_hist = histcounts(V_freq, centers+(mean(diff(centers))/2));
-        else
-            % perceptual binning
-            V_hist = zeros(1,30);
-            alpha = 25;
-            for i=1:30
-                b = i*1500/30;
-                f = linspace(0, 1500, length(V_freq));
-                w = (f - b).^2 / (2*alpha*b)^2;
-                V_hist(i) = dot(V_freq, w);
-            end
+        switch binmode
+            case 'naive'
+                highfreq = 1000;
+                centers = linspace(highfreq/Nbins, highfreq, Nbins+1);
+                V_hist = histcounts(V_freq, centers+(mean(diff(centers))/2));
+            case 'perceptual'
+                V_hist = zeros(1,nbins);
+                %alpha = 25;
+                for i=1:nbins
+                    b = i*1500/nbins;
+                    f = linspace(0, 1500, length(V_freq));
+                    w = (f - b).^2 / (2*alpha*b)^2;
+                    V_hist(i) = dot(V_freq, w);
+                end
+            otherwise
+                error('Unsupported bin mode')
         end
         
         % output to feature vector
+        % FIXME include median+std
         vectors(c,:) = [V_hist mean(F(:,3)) mean(S) mean(sqrt(sum(F(:,1:2).^2,2)))];
     end
 

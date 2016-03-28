@@ -245,7 +245,7 @@ test_features  = features(split_idx==2, :);
 %%
 % crossval
 
-cv = cvpartition(cell2mat(train_features(:,1)), 'KFold', 5);
+cv = cvpartition(cell2mat(train_features(:,1)), 'KFold', 10);
 oc_confusion = cell(1, cv.NumTestSets);
 mc_confusion = cell(1, cv.NumTestSets);
 oc_answers = cell(1, cv.NumTestSets);
@@ -255,32 +255,34 @@ mc_answers = cell(1, cv.NumTestSets);
 nbins = [5 10 20 30 40]; % 20
 binmode = {'perceptual'};
 alpha = [0.1 1 25 100]; % 25
-nu = 0:.2:1; % .6
+nu = 0.2:.2:.8; % .6
 gamma = [0.02 2 20 200 2000]; % 200
 
-gsn = [length(nbins) length(binmode) length(alpha) length(nu) length(gamma)];
-gsi = ones(size(gsn));
-gsl = 1;
-gsp = zeros(0, length(gsn));
-% generate gridsearch parameters
-while any(gsi < gsn)
-    gsp(end+1,:) = gsi;
-    if gsi(gsl) < gsn(gsl)
-        gsi(gsl) = gsi(gsl) + 1;
-    else
-        gsi(gsl) = 1;
-        gsl = gsl + 1;
+gs_limits = [length(nbins) length(binmode) length(alpha) length(nu) length(gamma)];
+gs_idx = repmat(ones(size(gs_limits)), prod(gs_limits), 1);
+for i=2:size(gs_idx,1)
+    gs_idx(i,:) = gs_idx(i-1,:);
+    for j=size(gs_idx,2):-1:1
+        if gs_idx(i,j) == gs_limits(j)
+            gs_idx(i,j) = 1;
+        else
+            gs_idx(i,j) = gs_idx(i,j) + 1;
+            break;
+        end
     end
 end
 %%
-gs_acc = zeros(prod(gsn),1);
-while any(gsi < gsn)
-    fprintf('Grid search with nbins=%d, binmode=%s, alpha=%g, nu=%g, gamma=%g\n', nbins(gsi(1)), binmode{gsi(2)}, alpha(gsi(3)), nu(gsi(4)), gamma(gsi(5)));
+gs_acc = zeros(size(gs_idx,1),1);
+for gsi=1:size(gs_idx,1)
+    %%
+    tic;
+    fprintf('Grid search with nbins=%d, binmode=%s, alpha=%g, nu=%g, gamma=%g\n', nbins(gs_idx(gsi,1)), binmode{gs_idx(gsi,2)}, alpha(gs_idx(gsi,3)), nu(gs_idx(gsi,4)), gamma(gs_idx(gsi,5)));
+    cv_acc = zeros(cv.NumTestSets,1);
     for cvi = 1:cv.NumTestSets
         train_vectors = [cell2mat(train_features(cv.training(cvi),1)) ...
-                         romano_features('post', train_features(cv.training(cvi),2:end), nbins(gsi(1)), binmode{gsi(2)}, alpha(gsi(3)))];
+                         romano_features('post', train_features(cv.training(cvi),2:end), nbins(gs_idx(gsi,1)), binmode{gs_idx(gsi,2)}, alpha(gs_idx(gsi,3)))];
         val_vectors   = [cell2mat(train_features(cv.test(cvi),    1)) ...
-                         romano_features('post', train_features(cv.test(cvi)    ,2:end), nbins(gsi(1)), binmode{gsi(2)}, alpha(gsi(3)))];
+                         romano_features('post', train_features(cv.test(cvi)    ,2:end), nbins(gs_idx(gsi,1)), binmode{gs_idx(gsi,2)}, alpha(gs_idx(gsi,3)))];
 
         trainmean = mean(train_vectors(:,2:end));
         trainvar  = var (train_vectors(:,2:end));
@@ -299,7 +301,7 @@ while any(gsi < gsn)
                       length(materials)+1); % OC models for each materials, one MC model
         common_args = ' -q ';
         %oc_train_args = ['-s 2 -t 2 -n 0.0303' common_args];
-        mc_train_args = [sprintf('-s 1 -t 2 -n %g -g %g', nu(gsi(4)), gamma(gsi(5))) common_args];
+        mc_train_args = [sprintf('-s 1 -t 2 -n %g -g %g', nu(gs_idx(gsi,4)), gamma(gs_idx(gsi,5))) common_args];
         test_args = common_args;
 
         %for mi=1:length(materials)
@@ -341,9 +343,11 @@ while any(gsi < gsn)
             end
         end
 
-        fprintf('\tFold %d: MC %g%%\n', cvi, ...
-                                        100*sum(diag(mc_confusion{cvi}))/sum(sum(mc_confusion{cvi})));
+        cv_acc(cvi) = sum(diag(mc_confusion{cvi}))/sum(sum(mc_confusion{cvi}));
+        fprintf('\tFold %d: MC %g%%\n', cvi, 100*cv_acc(cvi));
     end
+    gs_acc(gsi) = mean(cv_acc);
+    fprintf('\tGS #%d/%d: mean acc %g%%, %g s\n', gsi, size(gs_idx,1), 100*gs_acc(gsi), toc);
 end
 
 %%

@@ -1,10 +1,10 @@
 # This Makefile is used under Linux
 
-MATLABDIR ?= /usr/local/matlab
+MATLABDIR ?= /Users/alex/Applications/MATLAB_R2014b.app
 # for Mac
 # MATLABDIR ?= /opt/local/matlab
 
-CXX ?= g++
+CXX = g++-5
 #CXX = g++-4.1
 CFLAGS = -Wall -Wconversion -O3 -fPIC -I$(MATLABDIR)/extern/include -I..
 
@@ -12,6 +12,7 @@ MEX = $(MATLABDIR)/bin/mex
 MEX_OPTION = CC="$(CXX)" CXX="$(CXX)" CFLAGS="$(CFLAGS)" CXXFLAGS="$(CFLAGS)"
 # comment the following line if you use MATLAB on 32-bit computer
 MEX_OPTION += -largeArrayDims
+MEX_OPTION += -lgomp
 MEX_EXT = $(shell $(MATLABDIR)/bin/mexext)
 
 all:	matlab

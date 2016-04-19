@@ -3,10 +3,10 @@
 % calibrates using the datasets taken on 2/26/16 and 2/23/16
 % loads the datasets taken on 2/19/16 and 3/10/16 and does machine learning
 
-%% sphere calibration (see go_sphere_again.m)
-
 addpath(genpath('RANSAC-Toolbox'))
 addpath('libsvm/matlab')
+
+%% sphere calibration (see go_sphere_again.m)
 
 % vicon data
 v2 = csvload('../../nri/data/20160223/socket2stick/vicon.tsv', ...
@@ -23,7 +23,7 @@ v3 = csvload('../../nri/data/20160223/socket3stick/vicon.tsv', ...
 % use the second and third (ball popped up in first)
 x = [v2; v3];
 
-[c, ~, ~, cs] = sphereFit_ransac(x(:,2:4), 50); % FIXME allowing a huge amount of noise to get a reasonable number of inliers
+[c, r, ~, cs] = sphereFit_ransac(x(:,2:4), 50); % FIXME allowing a huge amount of noise to get a reasonable number of inliers
 
 d = nan([size(x,1) 3]);
 for i = find(cs)
@@ -33,6 +33,11 @@ end
 d = nanmean(d);
 
 % the product of sphere calibration is d
+spherecalib.x = x;
+spherecalib.c = c;
+spherecalib.r = r;
+spherecalib.cs = cs;
+spherecalib.d = d;
 
 %% free-space calibration (see go_bias.m)
 
@@ -88,6 +93,14 @@ end
 [R, t, err] = rigid_ransac(ideal_grav(inliers,2:4), grav(inliers,2:4), 10); % 100% inliers??
 
 % the product of free-space calibration is R
+freecalib.int_s = int_s;
+freecalib.grav = grav;
+freecalib.ideal_grav = ideal_grav;
+freecalib.c = c;
+freecalib.r = r;
+freecalib.cs = inliers;
+freecalib.R = R;
+freecalib.t = t;
 
 %% process calibrations: use d+R to calculate x+y+z for H_vic2bod + H_bal2imu
 
@@ -119,6 +132,7 @@ H_bal2imu(1,4) = S.x;
 % dataset parameters
 dir = '../../nri/data';
 materials = {'black', 'white', 'blue', 'brown', 'red'};
+material_names = {'ABS', 'paper plate', 'folder', 'MDF', 'canvas'};
 tools = {'stick'};
 reps = {'1', '2', '3', '4', '5', '1', '2', '3', '4', '5'};
 date = [repmat({'20160310'}, 1, 5) repmat({'20160219'}, 1, 5)];
@@ -217,7 +231,7 @@ end
 %% SVM stuff (following Romano & KJK 2014)
 
 % DO NOT RUN THIS AGAIN -- TRAINING ON TEST SET WILL RESULT
-% instead load featuresplit20160325.mat
+% instead load featuresplit20160329.mat
 
 % extract features
 features = cell(0, 5); % cols: label, vibration, speed, normal, tangential
@@ -226,7 +240,8 @@ for mi = 1:length(materials)
         for ti = 1:length(tools)
             fprintf('Romano features for %s on %s material, rep #%s\n', tools{ti}, materials{mi}, reps{ri});
             %%
-            new_feats = romano_features('pre', intworldsub{mi,ri,ti}, vendint{mi,ri,ti}, accint{mi,ri,ti}, mass, 0.05, [20 5]);
+            new_feats = romano_features('pre', intworldsub{mi,ri,ti}, vendint{mi,ri,ti}, accint{mi,ri,ti}, mass, 0.05, [20 3]);
+                                                                         % FIXME reexamine these thresholds, use forcefiltsub(:,3) instead of forcemag
             %%
             features = [features
                         num2cell(repmat(mi, size(new_feats,1), 1)) new_feats];
@@ -245,20 +260,21 @@ test_features  = features(split_idx==2, :);
 %%
 % crossval
 
-cv = cvpartition(cell2mat(train_features(:,1)), 'KFold', 10);
+cv = cvpartition(cell2mat(train_features(:,1)), 'KFold', 5);
 oc_confusion = cell(1, cv.NumTestSets);
 mc_confusion = cell(1, cv.NumTestSets);
 oc_answers = cell(1, cv.NumTestSets);
 mc_answers = cell(1, cv.NumTestSets);
 %%
 % hyperparameters
-nbins = [5 10 20 30 40]; % 20
-binmode = {'perceptual'};
-alpha = [0.1 1 25 100]; % 25
-nu = 0.2:.2:.8; % .6
-gamma = [0.02 2 20 200 2000]; % 200
+nbins = 10:5:40; % 20
+binmode = {'perceptual'}; % perceptual
+alpha = 0.05:0.05:0.3; % 25
+nu = .2:0.05:0.6; % .6
+gamma = [.1 1 10 100]; % 200
+stmode = [false true]; % false
 
-gs_limits = [length(nbins) length(binmode) length(alpha) length(nu) length(gamma)];
+gs_limits = [length(nbins) length(binmode) length(alpha) length(nu) length(gamma) length(stmode)];
 gs_idx = repmat(ones(size(gs_limits)), prod(gs_limits), 1);
 for i=2:size(gs_idx,1)
     gs_idx(i,:) = gs_idx(i-1,:);
@@ -273,35 +289,45 @@ for i=2:size(gs_idx,1)
 end
 %%
 gs_acc = zeros(size(gs_idx,1),1);
+clear romano_features; % clear persistent vars
+elapsed = tic;
 for gsi=1:size(gs_idx,1)
+    gs_nbins = nbins(gs_idx(gsi,1));
+    gs_binmode = binmode{gs_idx(gsi,2)};
+    gs_alpha = alpha(gs_idx(gsi,3));
+    gs_nu = nu(gs_idx(gsi,4));
+    gs_gamma = gamma(gs_idx(gsi,5));
+    gs_stmode = stmode(gs_idx(gsi,6));
     %%
-    tic;
-    fprintf('Grid search with nbins=%d, binmode=%s, alpha=%g, nu=%g, gamma=%g\n', nbins(gs_idx(gsi,1)), binmode{gs_idx(gsi,2)}, alpha(gs_idx(gsi,3)), nu(gs_idx(gsi,4)), gamma(gs_idx(gsi,5)));
+    iter = tic;
+    fprintf('Grid search with nbins=%d, binmode=%s, alpha=%g, nu=%g, gamma=%g, stmode=%d\n', gs_nbins, gs_binmode, gs_alpha, gs_nu, gs_gamma, gs_stmode);
     cv_acc = zeros(cv.NumTestSets,1);
     for cvi = 1:cv.NumTestSets
         train_vectors = [cell2mat(train_features(cv.training(cvi),1)) ...
-                         romano_features('post', train_features(cv.training(cvi),2:end), nbins(gs_idx(gsi,1)), binmode{gs_idx(gsi,2)}, alpha(gs_idx(gsi,3)))];
+                         romano_features('post', train_features(cv.training(cvi),2:end), gs_nbins, gs_binmode, gs_alpha, gs_stmode)];
         val_vectors   = [cell2mat(train_features(cv.test(cvi),    1)) ...
-                         romano_features('post', train_features(cv.test(cvi)    ,2:end), nbins(gs_idx(gsi,1)), binmode{gs_idx(gsi,2)}, alpha(gs_idx(gsi,3)))];
+                         romano_features('post', train_features(cv.test(cvi)    ,2:end), gs_nbins, gs_binmode, gs_alpha, gs_stmode)];
 
         trainmean = mean(train_vectors(:,2:end));
-        trainvar  = var (train_vectors(:,2:end));
+        train_vectors(:,2:end) = bsxfun(@minus, ...
+                                        train_vectors(:,2:end), ...
+                                        trainmean);
+        val_vectors  (:,2:end) = bsxfun(@minus, ...
+                                        val_vectors  (:,2:end), ...
+                                        trainmean);
+        trainrange = max(train_vectors(:,2:end)) - min(train_vectors(:,2:end));
         train_vectors(:,2:end) = bsxfun(@rdivide, ...
-                                        bsxfun(@minus, ...
-                                               train_vectors(:,2:end), ...
-                                               trainmean), ...
-                                        trainvar);
+                                        train_vectors(:,2:end), ...
+                                        trainrange);
         val_vectors  (:,2:end) = bsxfun(@rdivide, ...
-                                        bsxfun(@minus, ...
-                                               val_vectors  (:,2:end), ...
-                                               trainmean), ...
-                                        trainvar);
+                                        val_vectors  (:,2:end), ...
+                                        trainrange);
 
         models = cell(5, ... % vibration, speed+normal, normal+tangential, speed+normal+tangential, all
                       length(materials)+1); % OC models for each materials, one MC model
         common_args = ' -q ';
         %oc_train_args = ['-s 2 -t 2 -n 0.0303' common_args];
-        mc_train_args = [sprintf('-s 1 -t 2 -n %g -g %g', nu(gs_idx(gsi,4)), gamma(gs_idx(gsi,5))) common_args];
+        mc_train_args = [sprintf('-m 1000 -s 1 -t 2 -n %g -g %g', gs_nu, gs_gamma) common_args];
         test_args = common_args;
 
         %for mi=1:length(materials)
@@ -347,7 +373,7 @@ for gsi=1:size(gs_idx,1)
         fprintf('\tFold %d: MC %g%%\n', cvi, 100*cv_acc(cvi));
     end
     gs_acc(gsi) = mean(cv_acc);
-    fprintf('\tGS #%d/%d: mean acc %g%%, %g s\n', gsi, size(gs_idx,1), 100*gs_acc(gsi), toc);
+    fprintf('\tGS #%d/%d: mean acc %g%%, iter %g s / elapsed %g s\n', gsi, size(gs_idx,1), 100*gs_acc(gsi), toc(iter), toc(elapsed));
 end
 
 %%
@@ -363,22 +389,137 @@ title(sprintf('OC accuracy = %g%%', 100*sum(diag(oc_confusion))/sum(sum(oc_confu
 
 save mfi16_tbl_regression.mat
 
-%% problems
+%% figures
 
-% complex numbers / spikes
-% 1-3
-% 1-5
-% 2-1
-% 2-5
-% 3-1
-% 3-3
-% 4-1
-% 4-3
-% 4-5
-% 5-1
-% 5-4
+clear set; % there is a var called "set" but I need to use the set() function
 
-% max iter
-% 1-5
-% 4-3
-% 4-7
+% sphere calibration
+figure;
+sphereplot(spherecalib.c, spherecalib.r, {spherecalib.x(:,2:4)});
+xlabel('X position (mm)')
+ylabel('Y position (mm)')
+zlabel('Z position (mm)')
+print -dpdf mfi16_sphere_calib.pdf
+
+% free space calibration
+figure;
+plot(freecalib.int_s(:,1)-freecalib.int_s(1,1), freecalib.int_s(:,2:4))
+xlabel('Time (s)')
+ylabel('Measured force (N)')
+legend('X component', 'Y component', 'Z component')
+print -dpdf mfi16_freespace_data.pdf
+figure;
+transformed_grav = freecalib.ideal_grav;
+for i=1:size(freecalib.ideal_grav,1)
+    transformed_grav(i,2:4) = freecalib.R * freecalib.ideal_grav(i,2:4)' + freecalib.t;
+end
+hold on;
+h1 = plot3(freecalib.grav(:,2), freecalib.grav(:,3), freecalib.grav(:,4), '.');
+h2 = plot3(transformed_grav(:,2), transformed_grav(:,3), transformed_grav(:,4), '.');
+grid on
+axis equal vis3d
+view(11.5, 42)
+xlabel X
+ylabel Y
+zlabel Z
+legend('Measured gravity in body frame', 'World-frame gravity transformed to body frame', 'location','southeast')
+print -dpdf mfi16_freespace_grav.pdf
+
+% typical dataset
+figure;
+subplot(2,1,1);
+plot(vbodyint{3,2,1}(:,1)-vbodyint{3,2,1}(1,1), vbodyint{3,2,1}(:,2:4));
+ylabel('Position (mm)')
+legend X Y Z
+subplot(2,1,2);
+plot(intworldsub{3,2,1}(:,1)-intworldsub{3,2,1}(1,1), intworldsub{3,2,1}(:,2:4));
+xlabel('Time (s)')
+ylabel('Force (N)')
+legend X Y Z
+print -dpdf mfi16_typical_data.pdf
+
+%% feature vectors -- first set gsi to optimal and run the grid search iter
+fv1 = figure;
+fv2 = figure;
+f = romano_features('post', train_features(:,2:end), gs_nbins, gs_binmode, gs_alpha, gs_stmode);
+m = mean(f);
+for i=1:5
+    figure(fv1);
+    subplot(5,1,i);
+    g = f(cell2mat(train_features(:,1))==i, :);
+    g = bsxfun(@minus, g, m);
+    g = bsxfun(@rdivide, g, max(g) - min(g));
+    g = [g mean(g(:,(end-6):end), 2)];
+    g = sortrows(g, size(g,2));
+    g = g(:,1:end-1);
+    imagesc(g);
+    set(gca, 'xtick', []);
+    set(gca, 'ytick', []);
+    box off; axis off;
+    text(0.3, size(g,1)/2, ...
+         material_names{i}, ...
+         'HorizontalAlignment', 'right', ...
+         'Interpreter', 'tex');
+     
+    figure(fv2);
+    subplot(1,6,i);
+    cor = corrcoef(g(:,1:20));
+    imagesc(cor);
+end
+figure(fv1);
+colormap jet;
+axes('Position', [0.05 0.05 0.95 0.9], 'Visible', 'off');
+set(colorbar('ticks',[]), 'edgecolor','none');
+print -dpdf mfi16_feature_vectors.pdf;
+figure(fv2);
+subplot(1,6,6);
+colormap jet;
+colorbar;
+
+%% confusion matrices -- first set gsi to optimal and run the test set
+figure;
+imagesc(1 - bsxfun(@rdivide, mc_test_confusion, sum(mc_test_confusion, 1)), [0 1]);
+colormap gray;
+ax = gca;
+ax.XTick = [1 2 3 4 5];
+ax.YTick = [1 2 3 4 5];
+ax.XTickLabel = {'ABS', 'paper plate', 'folder', 'MDF', 'canvas'};
+ax.YTickLabel = {'ABS', 'paper plate', 'folder', 'MDF', 'canvas'};
+xlabel('Detected material');
+ylabel('Actual material');
+ax.XLabel.Position = ax.XLabel.Position + [0 0.1 0];
+for i=1:length(materials)
+    for j=1:length(materials)
+        if i == j
+            c = 'white';
+        else
+            c = 'black';
+        end
+        text(i, j, sprintf('%.3f', mc_test_confusion(i,j)/sum(mc_test_confusion(:,j))), ...
+             'Color',c, 'horizontalalignment','center');
+    end
+end
+print -dpdf mfi16_confusion_precision.pdf;
+figure;
+imagesc(1 - bsxfun(@rdivide, mc_test_confusion, sum(mc_test_confusion, 2)), [0 1]);
+colormap gray;
+ax = gca;
+ax.XTick = [1 2 3 4 5];
+ax.YTick = [1 2 3 4 5];
+ax.XTickLabel = {'ABS', 'paper plate', 'folder', 'MDF', 'canvas'};
+ax.YTickLabel = {'ABS', 'paper plate', 'folder', 'MDF', 'canvas'};
+xlabel('Detected material');
+ylabel('Actual material');
+ax.XLabel.Position = ax.XLabel.Position + [0 0.1 0];
+for i=1:length(materials)
+    for j=1:length(materials)
+        if i == j
+            c = 'white';
+        else
+            c = 'black';
+        end
+        text(i, j, sprintf('%.3f', mc_test_confusion(i,j)/sum(mc_test_confusion(i,:))), ...
+             'Color',c, 'HorizontalAlignment','center');
+    end
+end
+print -dpdf mfi16_confusion_recall.pdf;

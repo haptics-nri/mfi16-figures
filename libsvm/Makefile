@@ -1,5 +1,5 @@
-CXX ?= g++
-CFLAGS = -Wall -Wconversion -O3 -fPIC
+CXX = g++-5
+CFLAGS = -Wall -Wconversion -O3 -fPIC -fopenmp -I$(MATLABDIR)/extern/include -I..
 SHVER = 2
 OS = $(shell uname)
 

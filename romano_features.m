@@ -12,6 +12,7 @@
 %       thresh = [speed_thresh force_thresh] - no chunks will come from
 %                   periods of time with speed less than speed_thresh or total force
 %                   magnitude less than force_thresh
+%       stmode = false (just mean) or true (mean + median + std)
 %   post: bins the vibration and averages the speed/force to produce the actual feature vector
 %       cells   = the output of pre
 %       nbins   = number of bins for acceleration
@@ -37,21 +38,20 @@ function cells = romano_features_pre(force, pose, vibe, mass, dur, thresh)
     [vel, accfilt, ~, forcefilt] = pose_to_vel(pose(start:stop,:), force(start:stop,:));
     speed = sqrt(sum(vel.^2,2));
     forcefiltsub = forcefilt - mass*accfilt/1000;
-    forcemag = sqrt(sum(forcefiltsub.^2,2));
     vibe = vibe(start:stop,2:end);
     
     % 2. narrowing down to chunks
     
     chunks = zeros(0, 2);
     idx = start:stop; % between taps
-    idx((speed < thresh(1)) | (forcemag < thresh(2))) = []; % speed/force thresholds
+    idx((speed < thresh(1)) | (abs(forcefiltsub(:,3)) < thresh(2))) = []; % speed/force thresholds
     divs = [1 find(diff(idx) > 100) length(idx)]; % divide into continuous-ish segments
     dt = mean(diff(force(:,1)));
     for d=1:(length(divs)-1)
         t = idx(divs(d));
         while t+round(dur/dt) <= idx(divs(d+1))
             chunks = [chunks
-                      t-start t+round(dur/dt)-start];
+                      t-start+1 t+round(dur/dt)-start+1];
             t = t+round(dur/dt)+1;
         end
     end
@@ -65,11 +65,13 @@ function cells = romano_features_pre(force, pose, vibe, mass, dur, thresh)
     
 end
    
-function vectors = romano_features_post(cells, nbins, binmode, alpha)
+function vectors = romano_features_post(cells, nbins, binmode, alpha, stmode)
+    persistent f;
+
     % 3. process each chunk
     
     %nbins = 20;
-    vectors = zeros(size(cells,1), nbins+3);
+    vectors = zeros(size(cells,1), nbins + 3 + (3*stmode));
     
     for c=1:size(cells,1)
         V = cells{c,1};
@@ -81,25 +83,35 @@ function vectors = romano_features_post(cells, nbins, binmode, alpha)
         
         switch binmode
             case 'naive'
-                highfreq = 1000;
-                centers = linspace(highfreq/Nbins, highfreq, Nbins+1);
+                highfreq = 1500;
+                centers = linspace(highfreq/nbins, highfreq, nbins+1);
                 V_hist = histcounts(V_freq, centers+(mean(diff(centers))/2));
             case 'perceptual'
                 V_hist = zeros(1,nbins);
                 %alpha = 25;
+                if isempty(f)
+                    f = linspace(0, 1500, length(V_freq));
+                end
                 for i=1:nbins
                     b = i*1500/nbins;
-                    f = linspace(0, 1500, length(V_freq));
-                    w = (f - b).^2 / (2*alpha*b)^2;
-                    V_hist(i) = dot(V_freq, w);
+                    w = exp(-(f - b).^2 / (2*alpha*b)^2);
+                    V_hist(i) = V_freq' * w';
+                    %keyboard
                 end
             otherwise
                 error('Unsupported bin mode')
         end
         
         % output to feature vector
-        % FIXME include median+std
-        vectors(c,:) = [V_hist mean(F(:,3)) mean(S) mean(sqrt(sum(F(:,1:2).^2,2)))];
+        vectors(c,:) = [V_hist stats(F(:,3), stmode) stats(S, stmode) stats(sqrt(sum(F(:,1:2).^2,2)), stmode)];
     end
 
+end
+
+function st = stats(arr, mode)
+    if mode
+        st = [mean(arr) std(arr)];
+    else
+        st = mean(arr);
+    end
 end

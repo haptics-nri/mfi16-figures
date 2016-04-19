@@ -6,15 +6,17 @@
 addpath(genpath('RANSAC-Toolbox'))
 addpath('libsvm/matlab')
 
+DATADIR = '../../nri/data';
+
 %% sphere calibration (see go_sphere_again.m)
 
 % vicon data
-v2 = csvload('../../nri/data/20160223/socket2stick/vicon.tsv', ...
+v2 = csvload([DATADIR '/20160223/socket2stick/vicon.tsv'], ...
              {'Timestamp', ...
               'proton_Root_T_X_', 'proton_Root_T_Y_', 'proton_Root_T_Z_', ...
               'proton_Root_A_X_', 'proton_Root_A_Y_', 'proton_Root_A_Z_'}, ...
              {'Delimiter', '\t'});
-v3 = csvload('../../nri/data/20160223/socket3stick/vicon.tsv', ...
+v3 = csvload([DATADIR '/20160223/socket3stick/vicon.tsv'], ...
              {'Timestamp', ...
               'proton_Root_T_X_', 'proton_Root_T_Y_', 'proton_Root_T_Z_', ...
               'proton_Root_A_X_', 'proton_Root_A_Y_', 'proton_Root_A_Z_'}, ...
@@ -41,7 +43,6 @@ spherecalib.d = d;
 
 %% free-space calibration (see go_bias.m)
 
-dir = '../../nri/data';
 date = '20160226'; %'20151218';
 offset = 22.848; % manual (from taps)
 material = 'free';
@@ -49,7 +50,7 @@ tool = 'stick';
 rep = '1';
 
 set = [material rep tool];
-prefix = [dir filesep date filesep set filesep];
+prefix = [DATADIR filesep date filesep set filesep];
 
 v = csvload([prefix 'vicon.tsv'], ...
             {'Timestamp', ...
@@ -130,7 +131,6 @@ H_bal2imu(1,4) = S.x;
 %% setup for learning
 
 % dataset parameters
-dir = '../../nri/data';
 materials = {'black', 'white', 'blue', 'brown', 'red'};
 material_names = {'ABS', 'paper plate', 'folder', 'MDF', 'canvas'};
 tools = {'stick'};
@@ -161,7 +161,7 @@ for mi = 1:length(materials)
             fprintf('Loading data for %s on %s material, rep #%s\n', tools{ti}, materials{mi}, reps{ri});
             
             dataset = [materials{mi} reps{ri} tools{ti}];
-            prefix = [dir filesep date{ri} filesep dataset filesep];
+            prefix = [DATADIR filesep date{ri} filesep dataset filesep];
             
             [v{mi,ri,ti}, int{mi,ri,ti}, acc{mi,ri,ti}] = load_stick(prefix);
         end

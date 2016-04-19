@@ -1,22 +1,19 @@
 % part 49 of /Users/alex/Documents/research/proton/code/calibration/motion/mfi16_figures.m
-    figure(fv1);
-    subplot(5,1,i);
-    g = f(cell2mat(train_features(:,1))==i, :);
-    g = bsxfun(@minus, g, m);
-    g = bsxfun(@rdivide, g, max(g) - min(g));
-    g = [g mean(g(:,(end-6):end), 2)];
-    g = sortrows(g, size(g,2));
-    g = g(:,1:end-1);
-    imagesc(g);
-    set(gca, 'xtick', []);
-    set(gca, 'ytick', []);
-    box off; axis off;
-    text(0.3, size(g,1)/2, ...
-         material_names{i}, ...
-         'HorizontalAlignment', 'right', ...
-         'Interpreter', 'tex');
-     
-    figure(fv2);
-    subplot(1,6,i);
-    cor = corrcoef(g(:,1:20));
-    imagesc(cor);
+% feature vectors -- first set gsi to optimal and run the grid search iter
+fv1 = figure;
+fv2 = figure;
+f = romano_features('post', train_features(:,2:end), gs_nbins, gs_binmode, gs_alpha, gs_stmode);
+m = mean(f);
+for i=1:5
+    mfi16_figures_50
+end
+figure(fv1);
+colormap jet;
+axes('Position', [0.05 0.05 0.95 0.9], 'Visible', 'off');
+set(colorbar('ticks',[]), 'edgecolor','none');
+print -dpdf mfi16_feature_vectors.pdf;
+figure(fv2);
+subplot(1,6,6);
+colormap jet;
+colorbar;
+

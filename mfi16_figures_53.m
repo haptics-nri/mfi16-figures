@@ -18,5 +18,5 @@
      
     figure(fv2);
     subplot(1,6,i);
-    cor = corrcoef(g(:,1:20));
+    cor = corrcoef(g(:,1:end-6));
     imagesc(cor);

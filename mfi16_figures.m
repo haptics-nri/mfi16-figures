@@ -414,7 +414,7 @@ test_vectors (:,2:end) = bsxfun(@rdivide, ...
                                 trainrange);
 mc_train_args = [sprintf('-m 1000 -s 1 -t 2 -n %g -g %g', gs_nu, gs_gamma) common_args];
 final_model = svmtrain(train_vectors(:,1), train_vectors(:,2:end), mc_train_args);
-mc_test_answers = svmpredict(zeros(size(val_vectors,1),1), val_vectors(:,2:end), final_model, test_args);
+mc_test_answers = svmpredict(zeros(size(test_vectors,1),1), test_vectors(:,2:end), final_model, test_args);
 mc_test_confusion = zeros(length(materials));
 for i=1:length(materials)
     for j=1:length(materials)

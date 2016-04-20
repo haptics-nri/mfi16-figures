@@ -33,11 +33,13 @@ mfi16_figures_34
 mfi16_figures_39
 %%
 mfi16_figures_45
-%% save
+%% test on test set (first run GS/CV to completion)
 mfi16_figures_46
-%% figures
-mfi16_figures_47
-%% feature vectors -- first set gsi to optimal and run the grid search iter
+%% save
 mfi16_figures_49
+%% figures
+mfi16_figures_50
+%% feature vectors -- first set gsi to optimal and run the grid search iter
+mfi16_figures_52
 %% confusion matrices -- first set gsi to optimal and run the test set
-mfi16_figures_51
+mfi16_figures_54

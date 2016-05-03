@@ -560,7 +560,7 @@ for i=1:length(materials)
             c = 'black';
         end
         text(i, j, sprintf('%.3f', mc_test_confusion(i,j)/sum(mc_test_confusion(i,:))), ...
-             'Color',c, 'HorizontalAlignment','center');
+             'FontSize',14, 'Color',c, 'HorizontalAlignment','center');
     end
 end
 print -dpdf mfi16_confusion_recall.pdf;

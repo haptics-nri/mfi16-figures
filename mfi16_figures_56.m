@@ -5,4 +5,4 @@
             mfi16_figures_58
         end
         text(i, j, sprintf('%.3f', mc_test_confusion(i,j)/sum(mc_test_confusion(:,j))), ...
-             'Color',c, 'horizontalalignment','center');
+             'FontSize',14, 'Color',c, 'horizontalalignment','center');

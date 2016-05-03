@@ -8,6 +8,7 @@ ax.XTick = [1 2 3 4 5];
 ax.YTick = [1 2 3 4 5];
 ax.XTickLabel = {'ABS', 'paper plate', 'folder', 'MDF', 'canvas'};
 ax.YTickLabel = {'ABS', 'paper plate', 'folder', 'MDF', 'canvas'};
+ax.FontSize = 14;
 xlabel('Detected material');
 ylabel('Actual material');
 ax.XLabel.Position = ax.XLabel.Position + [0 0.1 0];

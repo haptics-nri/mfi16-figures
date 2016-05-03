@@ -524,6 +524,7 @@ ax.XTick = [1 2 3 4 5];
 ax.YTick = [1 2 3 4 5];
 ax.XTickLabel = {'ABS', 'paper plate', 'folder', 'MDF', 'canvas'};
 ax.YTickLabel = {'ABS', 'paper plate', 'folder', 'MDF', 'canvas'};
+ax.FontSize = 14;
 xlabel('Detected material');
 ylabel('Actual material');
 ax.XLabel.Position = ax.XLabel.Position + [0 0.1 0];
@@ -535,7 +536,7 @@ for i=1:length(materials)
             c = 'black';
         end
         text(i, j, sprintf('%.3f', mc_test_confusion(i,j)/sum(mc_test_confusion(:,j))), ...
-             'Color',c, 'horizontalalignment','center');
+             'FontSize',14, 'Color',c, 'horizontalalignment','center');
     end
 end
 print -dpdf mfi16_confusion_precision.pdf;

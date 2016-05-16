@@ -5,4 +5,4 @@
             dataset = [materials{mi} reps{ri} tools{ti}];
             prefix = [DATADIR filesep date{ri} filesep dataset filesep];
             
-            [v{mi,ri,ti}, int{mi,ri,ti}, acc{mi,ri,ti}] = load_stick(prefix);
+            [v{mi,ri,ti}, int{mi,ri,ti}, acc{mi,ri,ti}, gyr{mi,ri,ti}, mic{mi,ri,ti}, aacc{mi,ri,ti}] = load_stick(prefix);

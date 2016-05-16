@@ -150,9 +150,12 @@ mass = 0.1503; % kg
 com = [-.0029; -.00301; .0348]; % m
 %%
 
-v =   cell(length(materials), length(reps), length(tools));
-int = cell(length(materials), length(reps), length(tools));
-acc = cell(length(materials), length(reps), length(tools));
+v =    cell(length(materials), length(reps), length(tools));
+int  = cell(length(materials), length(reps), length(tools));
+acc  = cell(length(materials), length(reps), length(tools));
+gyr  = cell(length(materials), length(reps), length(tools));
+mic  = cell(length(materials), length(reps), length(tools));
+aacc = cell(length(materials), length(reps), length(tools));
 %%
 for mi = 1:length(materials)
     for ri = 1:length(reps)
@@ -163,7 +166,7 @@ for mi = 1:length(materials)
             dataset = [materials{mi} reps{ri} tools{ti}];
             prefix = [DATADIR filesep date{ri} filesep dataset filesep];
             
-            [v{mi,ri,ti}, int{mi,ri,ti}, acc{mi,ri,ti}] = load_stick(prefix);
+            [v{mi,ri,ti}, int{mi,ri,ti}, acc{mi,ri,ti}, gyr{mi,ri,ti}, mic{mi,ri,ti}, aacc{mi,ri,ti}] = load_stick(prefix);
         end
     end
 end
@@ -197,7 +200,7 @@ for mi = 1:length(materials)
              vint{mi,ri,ti}, vbodyint{mi,ri,ti}, vendint{mi,ri,ti}, ...
              accint{mi,ri,ti}, accworld{mi,ri,ti}, ...
              intbody{mi,ri,ti}, intworld{mi,ri,ti}, intworldsub{mi,ri,ti}] ...
-                = process_stick(v{mi,ri,ti}, int{mi,ri,ti}, acc{mi,ri,ti}, mass, com, H_vic2bod, H_m402bod, H_bal2imu, offset(ri));
+                = process_stick(v{mi,ri,ti}, int{mi,ri,ti}, aacc{mi,ri,ti}, mass, com, H_vic2bod, H_m402bod, H_bal2imu, offset(ri));
         end
     end
 end
@@ -267,11 +270,11 @@ oc_answers = cell(1, cv.NumTestSets);
 mc_answers = cell(1, cv.NumTestSets);
 %%
 % hyperparameters
-nbins = 10:5:40; % 20
+nbins = 5:5:40; % 20
 binmode = {'perceptual'}; % perceptual
-alpha = 0.05:0.05:0.3; % 25
+alpha = 0.05:0.05:0.5; % 25
 nu = .2:0.05:0.6; % .6
-gamma = [.1 1 10 100]; % 200
+gamma = [1 5 10 20]; % 200
 stmode = [false true]; % false
 
 gs_limits = [length(nbins) length(binmode) length(alpha) length(nu) length(gamma) length(stmode)];

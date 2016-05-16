@@ -33,8 +33,7 @@ function [v, int, vbody, vend, vint, vbodyint, vendint, accint, accworld, intbod
     vint     = [int(:,1) interp1(v(:,1),     v(:,2:4),     int(:,1)-off) slerp(v(:,1),     v(:,5:7),     int(:,1)-off)];
     vbodyint = [int(:,1) interp1(vbody(:,1), vbody(:,2:4), int(:,1)-off) slerp(vbody(:,1), vbody(:,5:7), int(:,1)-off)];
     vendint  = [int(:,1) interp1(vend(:,1),  vend(:,2:4),  int(:,1)-off) slerp(vend(:,1),  vend(:,5:7),  int(:,1)-off)];
-    accint   = [int(:,1) interp1(acc(:,1),   acc(:,2:4),   int(:,1))];
-
+    accint   = [int(:,1) interp1(acc(:,1),   [mean(-acc(:,[2 5]), 2) -acc(:,7) acc(:,4)], int(:,1))];
     % transform Mini40 and IMU into body frame and world frame
     fprintf('\ttransforming force\n');
     intbody = int;

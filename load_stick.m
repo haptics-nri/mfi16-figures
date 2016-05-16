@@ -1,4 +1,4 @@
-function [v, int, acc] = load_stick(prefix)
+function [v, int, dig_acc, dig_gyro, mic, ana_acc] = load_stick(prefix)
 
     v = csvload([prefix 'vicon.tsv'], ...
                 {'Timestamp', ...
@@ -8,13 +8,16 @@ function [v, int, acc] = load_stick(prefix)
 
     int = csvload([prefix 'teensy.ft.csv'], ...
                   [{'Timestamp'}, ...
-                   arrayfun(@(x) ['FT' num2str(x)], 0:11, 'UniformOutput',false)]);
+                   arrayfun(@(x) ['FT' num2str(x)], 0:29, 'UniformOutput',false)]);
 
     acc = csvload([prefix 'teensy.acc.csv'], ...
                   {'Timestamp', 'FIFOPosition', 'AccX', 'AccY', 'AccZ'});
+    gyro = csvload([prefix 'teensy.gyro.csv'], ...
+                  {'Timestamp', 'FIFOPosition', 'GyroX', 'GyroY', 'GyroZ'});
 
     % unpack raw sensor data
-    int = process_mini40(int);
-    acc = unfifo(acc);
+    [int, mic, ana_acc] = process_mini40(int);
+    dig_acc = unfifo(acc);
+    dig_gyro = unfifo(gyro);
 
 end

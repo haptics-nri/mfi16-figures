@@ -1,4 +1,4 @@
-function ft = process_mini40(raw, bias, tf)
+function [ft, mic, acc] = process_mini40(raw, bias, tf)
 
     if nargin < 3
         % from mfgr on proton pack internal Mini40
@@ -15,20 +15,38 @@ function ft = process_mini40(raw, bias, tf)
         end
     end
     
+    % COLUMNS
+    % sensor        position   bytes
+    % FT            1-6        2-13
+    % microphone    7          14-15
+    % acc 1 Y       10         20-21
+    % acc 1 Z       11         22-23
+    % acc 1 X       12         24-25
+    % acc 2 Y       13         26-27
+    % acc 2 Z       14         28-29
+    % acc 2 X       15         30-31
+    
     % merge bytes (preserve timestamp column), handle negatives, and scale
-    ft = [raw(:,1) bitshift(raw(:,[2 4 6 8 10 12]), 8) + raw(:,[3 5 7 9 11 13])];
-    for i=1:size(ft,1)
-        for j=2:size(ft,2)
-            if ft(i,j) >= 2048
-                ft(i,j) = ft(i,j) - 4096;
-            end
-        end
-    end
+    ft  = [raw(:,1) bitshift(raw(:,[2 4 6 8 10 12]),     8) + raw(:,[3 5 7 9 11 13])    ];
+    mic = [raw(:,1) bitshift(raw(:,14),                  8) + raw(:,15)                 ];
+    acc = [raw(:,1) bitshift(raw(:,[20 22 24 26 28 30]), 8) + raw(:,[21 23 25 27 29 31])];
+    ft = convsign(ft);
     ft(:,2:end) = ft(:,2:end) * 0.002;
     ft = permute(ft, [1 7 6 5 4 3 2]); % why is this necessary?
+    acc(:,2:end) = (acc(:,2:end) - 2048)/4096 * (16*9.81);
 
     % bias and transform
     ft(:,2:end) = (tf * bsxfun(@minus, ft(:,2:end), bias)')';
 
     ft = squeeze(ft);
+end
+
+function cols = convsign(cols)
+    for i=1:size(cols,1)
+        for j=2:size(cols,2)
+            if cols(i,j) >= 2048
+                cols(i,j) = cols(i,j) - 4096;
+            end
+        end
+    end
 end

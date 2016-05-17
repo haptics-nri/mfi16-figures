@@ -355,25 +355,30 @@ for gsi=1:size(gs_idx,1)
 
         models{end} = svmtrain(train_vectors(:,1), train_vectors(:,2:end), mc_train_args);
 
-        % evaluate by comparing all OCSVMs and the MCSVM
-        %oc_confusion{cvi} = zeros(length(materials));
-        mc_confusion{cvi} = zeros(length(materials));
-        %prob = zeros(size(val_vectors,1),length(materials));
-        %for mi=1:length(materials)
-        %    prob(:,mi) = rabaoui_dissim(models{mi}, val_vectors(:,2:end));
-        %end
-        %[~, oc_answers{cvi}] = min(prob, [], 2);
-        mc_answers{cvi} = svmpredict(zeros(size(val_vectors,1),1), val_vectors(:,2:end), models{end}, '-q');
+        if ~isempty(models{end})
+            % evaluate by comparing all OCSVMs and the MCSVM
+            %oc_confusion{cvi} = zeros(length(materials));
+            mc_confusion{cvi} = zeros(length(materials));
+            %prob = zeros(size(val_vectors,1),length(materials));
+            %for mi=1:length(materials)
+            %    prob(:,mi) = rabaoui_dissim(models{mi}, val_vectors(:,2:end));
+            %end
+            %[~, oc_answers{cvi}] = min(prob, [], 2);
+            mc_answers{cvi} = svmpredict(zeros(size(val_vectors,1),1), val_vectors(:,2:end), models{end}, '-q');
 
-        for i=1:length(materials)
-            for j=1:length(materials)
-        %        oc_confusion{cvi}(i,j) = nnz(oc_answers{cvi}(val_vectors(:,1)==i) == j);
-                mc_confusion{cvi}(i,j) = nnz(mc_answers{cvi}(val_vectors(:,1)==i) == j);
+            for i=1:length(materials)
+                for j=1:length(materials)
+            %        oc_confusion{cvi}(i,j) = nnz(oc_answers{cvi}(val_vectors(:,1)==i) == j);
+                    mc_confusion{cvi}(i,j) = nnz(mc_answers{cvi}(val_vectors(:,1)==i) == j);
+                end
             end
-        end
 
-        cv_acc(cvi) = sum(diag(mc_confusion{cvi}))/sum(sum(mc_confusion{cvi}));
-        fprintf('\tFold %d: MC %g%%\n', cvi, 100*cv_acc(cvi));
+            cv_acc(cvi) = sum(diag(mc_confusion{cvi}))/sum(sum(mc_confusion{cvi}));
+            fprintf('\tFold %d: MC %g%%\n', cvi, 100*cv_acc(cvi));
+        else
+            fprintf('\tFold %d: failed to train\n', cvi);
+            cv_acc(cvi) = 0;
+        end
     end
     gs_acc(gsi) = mean(cv_acc);
     fprintf('\tGS #%d/%d: mean acc %g%%, iter %g s / elapsed %g s\n', gsi, size(gs_idx,1), 100*gs_acc(gsi), toc(iter), toc(elapsed));

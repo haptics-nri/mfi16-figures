@@ -16,7 +16,7 @@ v3 = csvload([DATADIR '/20160223/socket3stick/vicon.tsv'], ...
 % use the second and third (ball popped up in first)
 x = [v2; v3];
 
-[c, r, ~, cs] = sphereFit_ransac(x(:,2:4), 50); % FIXME allowing a huge amount of noise to get a reasonable number of inliers
+[c, r, e, cs] = sphereFit_ransac(x(:,2:4), 50); % FIXME allowing a huge amount of noise to get a reasonable number of inliers
 
 d = nan([size(x,1) 3]);
 for i = find(cs)

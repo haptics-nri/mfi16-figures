@@ -39,12 +39,16 @@ print -dpdf mfi16_freespace_grav.pdf
 figure;
 subplot(2,1,1);
 plot(vbodyint{3,2,1}(:,1)-vbodyint{3,2,1}(1,1), vbodyint{3,2,1}(:,2:4));
-ylabel('Position (mm)')
-legend X Y Z
+yl = ylabel('Position (mm)');
+yl.Position(1) = yl.Position(1) - .3;
+legend('X', 'Y', 'Z', 'location','east');
+set(gca, 'fontsize',14);
 subplot(2,1,2);
 plot(intworldsub{3,2,1}(:,1)-intworldsub{3,2,1}(1,1), intworldsub{3,2,1}(:,2:4));
 xlabel('Time (s)')
-ylabel('Force (N)')
-legend X Y Z
+yl = ylabel('Force (N)');
+yl.Position(1) = yl.Position(1) - .3;
+legend('X', 'Y', 'Z', 'location','northeast');
+set(gca, 'fontsize',14);
 print -dpdf mfi16_typical_data.pdf
 

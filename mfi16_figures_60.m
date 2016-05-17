@@ -4,5 +4,5 @@
         else
             mfi16_figures_62
         end
-        text(i, j, sprintf('%.3f', mc_test_confusion(i,j)/sum(mc_test_confusion(i,:))), ...
+        text(j, i, sprintf('%.3f', mc_test_confusion(i,j)/sum(mc_test_confusion(i,:))), ...
              'FontSize',14, 'Color',c, 'HorizontalAlignment','center');

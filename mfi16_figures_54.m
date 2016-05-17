@@ -1,8 +1,8 @@
 % part 54 of /Users/alex/Documents/research/proton/code/calibration/motion/mfi16_figures.m
 % confusion matrices -- first set gsi to optimal and run the test set
 figure;
-imagesc(1 - bsxfun(@rdivide, mc_test_confusion, sum(mc_test_confusion, 1)), [0 1]);
-colormap gray;
+imagesc(bsxfun(@rdivide, mc_test_confusion, sum(mc_test_confusion, 1)), [0 1]);
+colormap(flipud(gray));
 ax = gca;
 ax.XTick = [1 2 3 4 5];
 ax.YTick = [1 2 3 4 5];
@@ -17,8 +17,8 @@ for i=1:length(materials)
 end
 print -dpdf mfi16_confusion_precision.pdf;
 figure;
-imagesc(1 - bsxfun(@rdivide, mc_test_confusion, sum(mc_test_confusion, 2)), [0 1]);
-colormap gray;
+imagesc(bsxfun(@rdivide, mc_test_confusion, sum(mc_test_confusion, 2)), [0 1]);
+colormap(flipud(gray));
 ax = gca;
 ax.XTick = [1 2 3 4 5];
 ax.YTick = [1 2 3 4 5];

@@ -243,7 +243,7 @@ for mi = 1:length(materials)
         for ti = 1:length(tools)
             fprintf('Romano features for %s on %s material, rep #%s\n', tools{ti}, materials{mi}, reps{ri});
             %%
-            new_feats = romano_features('pre', intworldsub{mi,ri,ti}, vendint{mi,ri,ti}, accint{mi,ri,ti}, mass, 0.05, [20 3]);
+            new_feats = romano_features('pre', intworldsub{mi,ri,ti}, vendint{mi,ri,ti}, accint{mi,ri,ti}, mass, 0.05, [10 0.5]);
                                                                          % FIXME reexamine these thresholds, use forcefiltsub(:,3) instead of forcemag
             %%
             features = [features
@@ -273,8 +273,8 @@ mc_answers = cell(1, cv.NumTestSets);
 nbins = 5:5:40; % 20
 binmode = {'perceptual'}; % perceptual
 alpha = 0.05:0.05:0.5; % 25
-nu = .2:0.05:0.6; % .6
-gamma = [1 5 10 20]; % 200
+nu = .1:0.05:0.7; % .6
+gamma = .1:.1:1; % 200
 stmode = [false true]; % false
 
 gs_limits = [length(nbins) length(binmode) length(alpha) length(nu) length(gamma) length(stmode)];

@@ -8,6 +8,7 @@ gs_alpha = alpha(gs_idx(gsi,3));
 gs_nu = nu(gs_idx(gsi,4));
 gs_gamma = gamma(gs_idx(gsi,5));
 gs_stmode = stmode(gs_idx(gsi,6));
+
 train_vectors = [cell2mat(train_features(:,1)) ...
                           romano_features('post', train_features(:,2:end), gs_nbins, gs_binmode, gs_alpha, gs_stmode)];
 test_vectors  = [cell2mat(test_features(:,1)) ...

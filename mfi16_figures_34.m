@@ -4,8 +4,8 @@
 nbins = 5:5:40; % 20
 binmode = {'perceptual'}; % perceptual
 alpha = 0.05:0.05:0.5; % 25
-nu = .2:0.05:0.6; % .6
-gamma = [1 5 10 20]; % 200
+nu = .1:0.05:0.7; % .6
+gamma = .1:.1:1; % 200
 stmode = [false true]; % false
 
 gs_limits = [length(nbins) length(binmode) length(alpha) length(nu) length(gamma) length(stmode)];

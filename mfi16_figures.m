@@ -25,7 +25,7 @@ v3 = csvload([DATADIR '/20160223/socket3stick/vicon.tsv'], ...
 % use the second and third (ball popped up in first)
 x = [v2; v3];
 
-[c, r, ~, cs] = sphereFit_ransac(x(:,2:4), 50); % FIXME allowing a huge amount of noise to get a reasonable number of inliers
+[c, r, e, cs] = sphereFit_ransac(x(:,2:4), 50); % FIXME allowing a huge amount of noise to get a reasonable number of inliers
 
 d = nan([size(x,1) 3]);
 for i = find(cs)
@@ -397,6 +397,7 @@ gs_alpha = alpha(gs_idx(gsi,3));
 gs_nu = nu(gs_idx(gsi,4));
 gs_gamma = gamma(gs_idx(gsi,5));
 gs_stmode = stmode(gs_idx(gsi,6));
+
 train_vectors = [cell2mat(train_features(:,1)) ...
                           romano_features('post', train_features(:,2:end), gs_nbins, gs_binmode, gs_alpha, gs_stmode)];
 test_vectors  = [cell2mat(test_features(:,1)) ...
@@ -470,13 +471,17 @@ print -dpdf mfi16_freespace_grav.pdf
 figure;
 subplot(2,1,1);
 plot(vbodyint{3,2,1}(:,1)-vbodyint{3,2,1}(1,1), vbodyint{3,2,1}(:,2:4));
-ylabel('Position (mm)')
-legend X Y Z
+yl = ylabel('Position (mm)');
+yl.Position(1) = yl.Position(1) - .3;
+legend('X', 'Y', 'Z', 'location','east');
+set(gca, 'fontsize',14);
 subplot(2,1,2);
 plot(intworldsub{3,2,1}(:,1)-intworldsub{3,2,1}(1,1), intworldsub{3,2,1}(:,2:4));
 xlabel('Time (s)')
-ylabel('Force (N)')
-legend X Y Z
+yl = ylabel('Force (N)');
+yl.Position(1) = yl.Position(1) - .3;
+legend('X', 'Y', 'Z', 'location','northeast');
+set(gca, 'fontsize',14);
 print -dpdf mfi16_typical_data.pdf
 
 %% feature vectors -- first set gsi to optimal and run the grid search iter
@@ -520,8 +525,8 @@ colorbar;
 
 %% confusion matrices -- first set gsi to optimal and run the test set
 figure;
-imagesc(1 - bsxfun(@rdivide, mc_test_confusion, sum(mc_test_confusion, 1)), [0 1]);
-colormap gray;
+imagesc(bsxfun(@rdivide, mc_test_confusion, sum(mc_test_confusion, 1)), [0 1]);
+colormap(flipud(gray));
 ax = gca;
 ax.XTick = [1 2 3 4 5];
 ax.YTick = [1 2 3 4 5];
@@ -538,14 +543,14 @@ for i=1:length(materials)
         else
             c = 'black';
         end
-        text(i, j, sprintf('%.3f', mc_test_confusion(i,j)/sum(mc_test_confusion(:,j))), ...
+        text(j, i, sprintf('%.3f', mc_test_confusion(i,j)/sum(mc_test_confusion(:,j))), ...
              'FontSize',14, 'Color',c, 'horizontalalignment','center');
     end
 end
 print -dpdf mfi16_confusion_precision.pdf;
 figure;
-imagesc(1 - bsxfun(@rdivide, mc_test_confusion, sum(mc_test_confusion, 2)), [0 1]);
-colormap gray;
+imagesc(bsxfun(@rdivide, mc_test_confusion, sum(mc_test_confusion, 2)), [0 1]);
+colormap(flipud(gray));
 ax = gca;
 ax.XTick = [1 2 3 4 5];
 ax.YTick = [1 2 3 4 5];
@@ -562,7 +567,7 @@ for i=1:length(materials)
         else
             c = 'black';
         end
-        text(i, j, sprintf('%.3f', mc_test_confusion(i,j)/sum(mc_test_confusion(i,:))), ...
+        text(j, i, sprintf('%.3f', mc_test_confusion(i,j)/sum(mc_test_confusion(i,:))), ...
              'FontSize',14, 'Color',c, 'HorizontalAlignment','center');
     end
 end

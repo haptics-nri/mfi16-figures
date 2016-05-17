@@ -1,34 +1,19 @@
 % part 54 of /Users/alex/Documents/research/proton/code/calibration/motion/mfi16_figures.m
-% confusion matrices -- first set gsi to optimal and run the test set
-figure;
-imagesc(bsxfun(@rdivide, mc_test_confusion, sum(mc_test_confusion, 1)), [0 1]);
-colormap(flipud(gray));
-ax = gca;
-ax.XTick = [1 2 3 4 5];
-ax.YTick = [1 2 3 4 5];
-ax.XTickLabel = {'ABS', 'paper plate', 'folder', 'MDF', 'canvas'};
-ax.YTickLabel = {'ABS', 'paper plate', 'folder', 'MDF', 'canvas'};
-ax.FontSize = 14;
-xlabel('Detected material');
-ylabel('Actual material');
-ax.XLabel.Position = ax.XLabel.Position + [0 0.1 0];
-for i=1:length(materials)
+% feature vectors -- first set gsi to optimal and run the grid search iter
+fv1 = figure;
+fv2 = figure;
+f = romano_features('post', train_features(:,2:end), gs_nbins, gs_binmode, gs_alpha, gs_stmode);
+m = mean(f);
+for i=1:5
     mfi16_figures_55
 end
-print -dpdf mfi16_confusion_precision.pdf;
-figure;
-imagesc(bsxfun(@rdivide, mc_test_confusion, sum(mc_test_confusion, 2)), [0 1]);
-colormap(flipud(gray));
-ax = gca;
-ax.XTick = [1 2 3 4 5];
-ax.YTick = [1 2 3 4 5];
-ax.XTickLabel = {'ABS', 'paper plate', 'folder', 'MDF', 'canvas'};
-ax.YTickLabel = {'ABS', 'paper plate', 'folder', 'MDF', 'canvas'};
-ax.FontSize = 14;
-xlabel('Detected material');
-ylabel('Actual material');
-ax.XLabel.Position = ax.XLabel.Position + [0 0.1 0];
-for i=1:length(materials)
-    mfi16_figures_59
-end
-print -dpdf mfi16_confusion_recall.pdf;
+figure(fv1);
+colormap jet;
+axes('Position', [0.05 0.05 0.95 0.9], 'Visible', 'off');
+set(colorbar('ticks',[]), 'edgecolor','none');
+print -dpdf mfi16_feature_vectors.pdf;
+figure(fv2);
+subplot(1,6,6);
+colormap jet;
+colorbar;
+

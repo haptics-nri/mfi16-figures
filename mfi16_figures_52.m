@@ -1,19 +1,54 @@
 % part 52 of /Users/alex/Documents/research/proton/code/calibration/motion/mfi16_figures.m
-% feature vectors -- first set gsi to optimal and run the grid search iter
-fv1 = figure;
-fv2 = figure;
-f = romano_features('post', train_features(:,2:end), gs_nbins, gs_binmode, gs_alpha, gs_stmode);
-m = mean(f);
-for i=1:5
+% figures
+
+clear set; % there is a var called "set" but I need to use the set() function
+
+% sphere calibration
+figure;
+sphereplot(spherecalib.c, spherecalib.r, {spherecalib.x(:,2:4)});
+xlabel('X position (mm)')
+ylabel('Y position (mm)')
+zlabel('Z position (mm)')
+print -dpdf mfi16_sphere_calib.pdf
+
+% free space calibration
+figure;
+plot(freecalib.int_s(:,1)-freecalib.int_s(1,1), freecalib.int_s(:,2:4))
+xlabel('Time (s)')
+ylabel('Measured force (N)')
+legend('X component', 'Y component', 'Z component')
+print -dpdf mfi16_freespace_data.pdf
+figure;
+transformed_grav = freecalib.ideal_grav;
+for i=1:size(freecalib.ideal_grav,1)
     mfi16_figures_53
 end
-figure(fv1);
-colormap jet;
-axes('Position', [0.05 0.05 0.95 0.9], 'Visible', 'off');
-set(colorbar('ticks',[]), 'edgecolor','none');
-print -dpdf mfi16_feature_vectors.pdf;
-figure(fv2);
-subplot(1,6,6);
-colormap jet;
-colorbar;
+hold on;
+h1 = plot3(freecalib.grav(:,2), freecalib.grav(:,3), freecalib.grav(:,4), '.');
+h2 = plot3(transformed_grav(:,2), transformed_grav(:,3), transformed_grav(:,4), '.');
+grid on
+axis equal vis3d
+view(11.5, 42)
+xlabel X
+ylabel Y
+zlabel Z
+legend('Measured gravity in body frame', 'World-frame gravity transformed to body frame', 'location','southeast')
+print -dpdf mfi16_freespace_grav.pdf
+
+% typical dataset
+figure;
+subplot(2,1,1);
+plot(vbodyint{3,2,1}(:,1)-vbodyint{3,2,1}(1,1), vbodyint{3,2,1}(:,2:4));
+yl = ylabel('Position (mm)');
+yl.Position(1) = yl.Position(1) - .3;
+legend('X', 'Y', 'Z', 'location','east');
+set(gca, 'fontsize',14);
+subplot(2,1,2);
+plot(intworldsub{3,2,1}(:,1)-intworldsub{3,2,1}(1,1), intworldsub{3,2,1}(:,2:4));
+xlabel('Time (s)')
+yl = ylabel('Force (N)');
+yl.Position(1) = yl.Position(1) - .3;
+legend('X', 'Y', 'Z', 'location','northeast');
+set(gca, 'fontsize',14);
+print -dpdf mfi16_typical_data.pdf
 

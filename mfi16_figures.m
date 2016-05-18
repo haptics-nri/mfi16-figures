@@ -243,8 +243,8 @@ for mi = 1:length(materials)
         for ti = 1:length(tools)
             fprintf('Romano features for %s on %s material, rep #%s\n', tools{ti}, materials{mi}, reps{ri});
             %%
-            new_feats = romano_features('pre', intworldsub{mi,ri,ti}, vendint{mi,ri,ti}, accint{mi,ri,ti}, mass, 0.05, [10 0.5]);
-                                                                         % FIXME reexamine these thresholds, use forcefiltsub(:,3) instead of forcemag
+            new_feats = romano_features('pre', intworldsub{mi,ri,ti}, vendint{mi,ri,ti}, accint{mi,ri,ti}, mass, 0.05, [20 3]);
+                                                                         % FIXME reexamine these thresholds
             %%
             features = [features
                         num2cell(repmat(mi, size(new_feats,1), 1)) new_feats];
@@ -274,7 +274,7 @@ nbins = 5:5:30; % 20
 binmode = {'perceptual'}; % perceptual
 alpha = 0.05:0.05:0.5; % 25
 nu = .1:0.05:0.7; % .6
-gamma = .1:.2:1; % 200
+gamma = [1 5 10 20]; % 200
 stmode = [false true]; % false
 
 gs_limits = [length(nbins) length(binmode) length(alpha) length(nu) length(gamma) length(stmode)];
@@ -577,3 +577,20 @@ for i=1:length(materials)
     end
 end
 print -dpdf mfi16_confusion_recall.pdf;
+
+fprintf('\n');
+fprintf('Surface & Accuracy & Precision & Recall & $F_1$ score\n');
+for i=1:length(materials)
+    fprintf('%s  &  ', material_names{i});
+    others = setdiff(1:5, i);
+    tp = mc_test_confusion(i,i);
+    fp = sum(mc_test_confusion(others,i));
+    tn = sum(sum(mc_test_confusion(others,others)));
+    fn = sum(mc_test_confusion(i,others));
+    acc = (tp+tn)/(tp+tn+fp+fn);
+    prec = tp/(tp+fp);
+    rec = tp/(tp+fn);
+    f1 = 2*prec*rec/(prec+rec);
+    fprintf('%.3f  &  %.3f  &  %.3f  &  %.3f', acc, prec, rec, f1);
+    fprintf(' \\\\ \n');
+end

@@ -32,3 +32,9 @@ for i=1:length(materials)
     mfi16_figures_61
 end
 print -dpdf mfi16_confusion_recall.pdf;
+
+fprintf('\n');
+fprintf('Surface & Accuracy & Precision & Recall & $F_1$ score\n');
+for i=1:length(materials)
+    mfi16_figures_65
+end

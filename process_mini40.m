@@ -1,4 +1,4 @@
-function [ft, mic, acc] = process_mini40(raw, bias, tf)
+function [ft, mic, acc, raw] = process_mini40(raw, bias, tf)
 
     if nargin < 3
         % from mfgr on proton pack internal Mini40
@@ -32,13 +32,10 @@ function [ft, mic, acc] = process_mini40(raw, bias, tf)
     acc = [raw(:,1) bitshift(raw(:,[20 22 24 26 28 30]), 8) + raw(:,[21 23 25 27 29 31])];
     ft = convsign(ft);
     ft(:,2:end) = ft(:,2:end) * 0.002;
-    ft = permute(ft, [1 7 6 5 4 3 2]); % why is this necessary?
     acc(:,2:end) = (acc(:,2:end) - 2048)/4096 * (16*9.81);
 
     % bias and transform
     ft(:,2:end) = (tf * bsxfun(@minus, ft(:,2:end), bias)')';
-
-    ft = squeeze(ft);
 end
 
 function cols = convsign(cols)

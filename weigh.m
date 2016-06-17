@@ -11,7 +11,7 @@
 %    offsets [optional, required for testidx]: clock offsets for the test episodes
 % Returns:
 %    mass: mass of the end-effector (kg)
-%    bias: measured force with on load (N)
+%    bias: measured force with no load (N)
 function [mass, bias, err] = weigh(epdirs, display, testidx, offsets)
 
     if nargin < 4
@@ -32,7 +32,7 @@ function [mass, bias, err] = weigh(epdirs, display, testidx, offsets)
     for i=1:length(epdirs)
         int = csvload([epdirs{i} filesep 'teensy.ft.csv'], ...
                       [{'Timestamp'}, ...
-                       arrayfun(@(x) ['FT' num2str(x)], 0:11, 'UniformOutput',false)]);
+                       arrayfun(@(x) ['FT' num2str(x)], 0:29, 'UniformOutput',false)]);
 
         int = process_mini40(int, zeros(1,6));
         
@@ -48,19 +48,21 @@ function [mass, bias, err] = weigh(epdirs, display, testidx, offsets)
     
     % perform calibration
     
-    [bias, weight, err, inliers] = sphereFit_ransac(allint(:,2:4));
+    [bias, weight, ~, r_inliers] = sphereFit_ransac(allint(:,2:4));
+    [~, ~, ~, r_err] = sphereFit(allint(r_inliers,2:4)); % run again to get RMS error
     mass = weight/9.81;
+    err = struct('err', r_err, 'inliers', r_inliers);
     
     % display
     
     if display
         clf;
-        %plot(allint(:,2:4));
-        %sphereplot(bias, weight, {allint(inliers,2:4), allint(~inliers,2:4)});
-        t = 1:size(allint,1);
-        plot(t(inliers),   sqrt(sum(bsxfun(@minus, allint(inliers,2:4),  bias).^2,2)) - weight, '.', ...
-             t(~inliers),  sqrt(sum(bsxfun(@minus, allint(~inliers,2:4), bias).^2,2)) - weight, '.', ...
-             t,            acos(allint(:,3)-mean(allint(:,3))));
+        plot(allint(:,2:4));
+        sphereplot(bias, weight, {allint(r_inliers,2:4), allint(~r_inliers,2:4)});
+        %t = 1:size(allint,1);
+        %plot(t(r_inliers),   sqrt(sum(bsxfun(@minus, allint(r_inliers,2:4),  bias).^2,2)) - weight, '.', ...
+        %     t(~r_inliers),  sqrt(sum(bsxfun(@minus, allint(~r_inliers,2:4), bias).^2,2)) - weight, '.', ...
+        %     t,            acos(allint(:,3)-mean(allint(:,3))));
     end
      
     % test

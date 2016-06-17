@@ -9,30 +9,46 @@
 addpath(genpath('RANSAC-Toolbox'))
 
 datadir = '../../nri/data/20151223';
-endeffs = {'stick', 'opto', 'bio', 'center'};
+endeffs = {'stick', 'opto', 'bio'};%, 'center'};
+
+err = struct('force', cell(1,length(endeffs)), 'bias', cell(1,length(endeffs)));
+err_tot = struct('force',[], 'bias',[]);
 
 %% force calibration
 
 mass = zeros(size(endeffs));
 fbias = zeros(0, 3);
+ertot = [];
+intot = [];
 
 for i=1:length(endeffs)
     episodes = dir([datadir filesep 'free*' endeffs{i}]);
+    err(i).force = struct('err',{}, 'inliers',{});
     for j=1:length(episodes)
         fprintf('%s\n', episodes(j).name);
-        [mass_tmp, bias_tmp] = weigh([datadir filesep episodes(j).name]);
+        [mass_tmp, bias_tmp, err(i).force(j)] = weigh({[datadir filesep episodes(j).name]});
         mass(i) = mass(i) + mass_tmp;
         fbias = [fbias; bias_tmp];
+        
+        ertot = [ertot sqrt(mean(err(i).force(j).err.^2))];
+        intot = [intot nnz(err(i).force(j).inliers)/length(err(i).force(j).inliers)];
     end
     mass(i) = mass(i)/length(episodes);
 end
 fbias_std = std(fbias);
 fbias = mean(fbias);
+err_tot.force = [mean(ertot) std(ertot) mean(intot) std(intot)];
 
 %% torque calibration
 
+%H_m402bod = [0 0 1 108.99
+%             1 0 0   0.53
+%             0 1 0  -2.98
+%             0 0 0   1   ];
+
 com = zeros(length(endeffs), 3);
 tbias = zeros(0, 3);
+ertot = [];
 
 for i=1:length(endeffs)
     episodes = dir([datadir filesep 'free*' endeffs{i}]);
@@ -42,7 +58,7 @@ for i=1:length(endeffs)
         % TODO make this a function
         int = csvload([datadir filesep episodes(j).name filesep 'teensy.ft.csv'], ...
                       [{'Timestamp'}, ...
-                       arrayfun(@(x) ['FT' num2str(x)], 0:11, 'UniformOutput',false)]);
+                       arrayfun(@(x) ['FT' num2str(x)], 0:29, 'UniformOutput',false)]);
                
         a = round(size(int,1)*1/10);
         b = round(size(int,1)*9/10);
@@ -59,15 +75,17 @@ for i=1:length(endeffs)
                                                 F(k,2) -F(k,1)  0      ]];
             b( (k-1)*3+1 : k*3 ) = int(k,5:7)';
         end
-        x = robustfit(A, b, '', '', 'off'); % robust least squares with no constant term
+        [x, stats] = robustfit(A, b, '', '', 'off'); % robust least squares with no constant term
+        ertot = [ertot stats.robust_s];
         
         com(i,:) = com(i,:) + x(4:6)';
         tbias = [tbias; x(1:3)'];
     end
-    com(i,:) = com(i,:)/length(episodes);
+    com(i,:) = 1000*com(i,:)/length(episodes);
 end
 tbias_std = std(tbias);
 tbias = mean(tbias);
+err_tot.bias = [mean(ertot) std(ertot)];
 
 %% print results
 

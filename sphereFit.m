@@ -1,4 +1,4 @@
-function [Center,Radius,Error] = sphereFit(X)
+function [Center,Radius,Error,PointError] = sphereFit(X)
 % this fits a sphere to a collection of data using a closed form for the
 % solution (opposed to using an array the size of the data set). 
 % Minimizes Sum((x-xc)^2+(y-yc)^2+(z-zc)^2-r^2)^2
@@ -32,4 +32,5 @@ B=[mean((X(:,1).^2+X(:,2).^2+X(:,3).^2).*(X(:,1)-mean(X(:,1))));...
     mean((X(:,1).^2+X(:,2).^2+X(:,3).^2).*(X(:,3)-mean(X(:,3))))];
 Center=(A\B).';
 Radius=sqrt(mean(sum([X(:,1)-Center(1),X(:,2)-Center(2),X(:,3)-Center(3)].^2,2)));
-Error=sum(abs(sum(bsxfun(@minus, X, Center).^2,2)-Radius^2));
+PointError=sum(bsxfun(@minus, X, Center).^2,2)-Radius^2;
+Error=sum(abs(PointError));

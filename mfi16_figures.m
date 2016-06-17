@@ -291,10 +291,10 @@ for i=2:size(gs_idx,1)
     end
 end
 %%
-gs_acc = zeros(size(gs_idx,1),1);
-clear romano_features; % clear persistent vars
+%gs_acc = zeros(size(gs_idx,1),1);
+%clear romano_features; % clear persistent vars
 elapsed = tic;
-for gsi=1:size(gs_idx,1)
+for gsi=10090:size(gs_idx,1)
     gs_nbins = nbins(gs_idx(gsi,1));
     gs_binmode = binmode{gs_idx(gsi,2)};
     gs_alpha = alpha(gs_idx(gsi,3));
@@ -491,7 +491,7 @@ print -dpdf mfi16_typical_data.pdf
 
 %% feature vectors -- first set gsi to optimal and run the grid search iter
 fv1 = figure;
-fv2 = figure;
+%fv2 = figure;
 f = romano_features('post', train_features(:,2:end), gs_nbins, gs_binmode, gs_alpha, gs_stmode);
 m = mean(f);
 for i=1:5
@@ -500,7 +500,7 @@ for i=1:5
     g = f(cell2mat(train_features(:,1))==i, :);
     g = bsxfun(@minus, g, m);
     g = bsxfun(@rdivide, g, max(g) - min(g));
-    g = [g mean(g(:,(end-6):end), 2)];
+    g = [g mean(g(:,[end-5 end-3 end-1]), 2)];
     g = sortrows(g, size(g,2));
     g = g(:,1:end-1);
     imagesc(g);
@@ -513,20 +513,44 @@ for i=1:5
          'HorizontalAlignment', 'right', ...
          'Interpreter', 'tex');
      
-    figure(fv2);
-    subplot(1,6,i);
-    cor = corrcoef(g(:,1:end-6));
-    imagesc(cor);
+    %figure(fv2);
+    %subplot(1,6,i);
+    %cor = corrcoef(g(:,1:end-6));
+    %imagesc(cor);
 end
 figure(fv1);
+a = subplot(5,1,5);
+axis on;
+a.XRuler.Axle.Visible = 'off';
+a.YRuler.Axle.Visible = 'off';
+%a.XTick = 1:10;
+labels = {};
+for i=1:gs_nbins
+    labels{end+1} = sprintf('Freq. bin %d', i);
+end
+things = {'F_N', 'V', 'F_T'};
+for thing=1:length(things)
+    labels{end+1} = sprintf('Mean %s', things{thing});
+    if gs_stmode
+        labels{end+1} = sprintf('Std %s', things{thing});
+    end
+end
+%a.XTickLabels = labels;
+%a.XTickLabelRotation = 70;
+%a.TickLength = [0 0];
+for i=1:length(labels)
+    text(i, size(g,1)*1.2, labels{i}, 'Rotation',-60, 'FontSize',14);
+end
 colormap jet;
 axes('Position', [0.05 0.05 0.95 0.9], 'Visible', 'off');
 set(colorbar('ticks',[]), 'edgecolor','none');
+text(1.08, 1, '1', 'fontsize',14);
+text(1.08, 0, '0', 'fontsize',14);
 print -dpdf mfi16_feature_vectors.pdf;
-figure(fv2);
-subplot(1,6,6);
-colormap jet;
-colorbar;
+%figure(fv2);
+%subplot(1,6,6);
+%colormap jet;
+%colorbar;
 
 %% confusion matrices -- first set gsi to optimal and run the test set
 figure;
@@ -552,7 +576,7 @@ for i=1:length(materials)
              'FontSize',14, 'Color',c, 'horizontalalignment','center');
     end
 end
-print -dpdf mfi16_confusion_precision.pdf;
+print -dpdf mfi16_confusion_recall.pdf;
 figure;
 imagesc(bsxfun(@rdivide, mc_test_confusion, sum(mc_test_confusion, 2)), [0 1]);
 colormap(flipud(gray));
@@ -576,10 +600,10 @@ for i=1:length(materials)
              'FontSize',14, 'Color',c, 'HorizontalAlignment','center');
     end
 end
-print -dpdf mfi16_confusion_recall.pdf;
+print -dpdf mfi16_confusion_precision.pdf;
 
 fprintf('\n');
-fprintf('Surface & Accuracy & Precision & Recall & $F_1$ score\n');
+fprintf('Surface & Precision & Recall & $F_1$ score\n');
 for i=1:length(materials)
     fprintf('%s  &  ', material_names{i});
     others = setdiff(1:5, i);
@@ -587,10 +611,9 @@ for i=1:length(materials)
     fp = sum(mc_test_confusion(others,i));
     tn = sum(sum(mc_test_confusion(others,others)));
     fn = sum(mc_test_confusion(i,others));
-    acc = (tp+tn)/(tp+tn+fp+fn);
     prec = tp/(tp+fp);
     rec = tp/(tp+fn);
     f1 = 2*prec*rec/(prec+rec);
-    fprintf('%.3f  &  %.3f  &  %.3f  &  %.3f', acc, prec, rec, f1);
+    fprintf('%.3f  &  %.3f  &  %.3f', prec, rec, f1);
     fprintf(' \\\\ \n');
 end

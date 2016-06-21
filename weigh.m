@@ -10,9 +10,13 @@
 %    testidx [optional]: pick some episodes out of epdirs to use for confirmation
 %    offsets [optional, required for testidx]: clock offsets for the test episodes
 % Returns:
-%    mass: mass of the end-effector (kg)
-%    bias: measured force with no load (N)
-function [mass, bias, err] = weigh(epdirs, display, testidx, offsets)
+%    mass : mass of the end-effector (kg)
+%    com  : center-of-mass of the end-effector (1x3 m)
+%    fbias: measured force with no load (N)
+%    tbias: measured torque with no load (Nm)
+%    m_err: error in mass fit
+%    c_err: error in com fit
+function [mass, fbias, m_err, com, tbias, c_err] = weigh(epdirs, display, testidx, offsets)
 
     if nargin < 4
         if nargin == 3
@@ -46,23 +50,42 @@ function [mass, bias, err] = weigh(epdirs, display, testidx, offsets)
         end
     end
     
-    % perform calibration
+    % measure mass
     
-    [bias, weight, ~, r_inliers] = sphereFit_ransac(allint(:,2:4));
+    [fbias, weight, ~, r_inliers] = sphereFit_ransac(allint(:,2:4));
     [~, ~, ~, r_err] = sphereFit(allint(r_inliers,2:4)); % run again to get RMS error
     mass = weight/9.81;
-    err = struct('err', r_err, 'inliers', r_inliers);
+    m_err = struct('err', r_err, 'inliers', r_inliers);
+    
+    % measure center-of-mass
+    
+    N = size(allint,1);
+    A = zeros(3*N, 6);
+    b = zeros(3*N, 1);
+    F = bsxfun(@minus, allint(:,2:4), fbias); % subtract out previously measured force bias
+    for k=1:N
+        A( (k-1)*3+1 : k*3 , :) = [eye(3) [ 0       F(k,3) -F(k,2)
+                                           -F(k,3)  0       F(k,1)
+                                            F(k,2) -F(k,1)  0      ]];
+        b( (k-1)*3+1 : k*3 ) = allint(k,5:7)';
+    end
+    [x, stats] = robustfit(A, b, '', '', 'off'); % robust least squares with no constant term
+    tbias = x(1:3);
+    com = x(4:6);
+    c_err = stats.robust_s;
     
     % display
     
     if display
         clf;
         plot(allint(:,2:4));
-        sphereplot(bias, weight, {allint(r_inliers,2:4), allint(~r_inliers,2:4)});
+        sphereplot(fbias, weight, {allint(r_inliers,2:4), allint(~r_inliers,2:4)});
         %t = 1:size(allint,1);
         %plot(t(r_inliers),   sqrt(sum(bsxfun(@minus, allint(r_inliers,2:4),  bias).^2,2)) - weight, '.', ...
         %     t(~r_inliers),  sqrt(sum(bsxfun(@minus, allint(~r_inliers,2:4), bias).^2,2)) - weight, '.', ...
         %     t,            acos(allint(:,3)-mean(allint(:,3))));
+        
+        % TODO plot center-of-mass
     end
      
     % test

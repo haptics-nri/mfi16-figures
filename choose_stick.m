@@ -51,11 +51,21 @@ for i=1:length(eps)
     [fpks, flocs] = findpeaks(f(:,3), 'SortStr','descend', 'NPeaks',4, 'MinPeakProminence',2, 'MinPeakDistance',500);
     [flocs, idx] = sort(flocs); % resort in order
     fpks = fpks(idx);
+    ftimes = f(flocs([1 3]),1); % use the first and second-to-last
     
     % find the 4 rises-before-the-taps in vicon
     [vpks, vlocs] = findpeaks(v(:,4), 'SortStr','descend', 'NPeaks',4, 'MinPeakDistance',10);
     [vlocs, idx] = sort(vlocs); % resort in order
     vpks = vpks(idx);
+    vtimes = [mean(v(vlocs([1 2]),1)); mean(v(vlocs([3 4]),1))]; % average the two pairs to get the first and second-to-last
     
-    eps(i).offset = mean(v(vlocs,1) - f(flocs,1));
+    % the offset is the average time difference between the peaks,
+    % but we might have some misidentified peaks.
+    eps(i).offset = mean(vtimes - ftimes);
 end
+% loop through and fixup any that are too far from the mean
+for idx = find(abs([eps.offset] - mean([eps.offset])) > 0.25)
+    eps(idx).offset = (eps(idx-1).offset + eps(idx+1).offset)/2;
+end
+
+save stickdata eps

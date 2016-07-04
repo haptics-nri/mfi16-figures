@@ -30,11 +30,18 @@ function varargout = romano_features(mode, varargin)
     end
 end
 
-function cells = romano_features_pre(force, pose, vibe, mass, dur, thresh)
+function cells = romano_features_pre(force, pose, vibe, mass, dur, thresh, startstop)
 
     % 1. preprocessing
 
-    [start, stop] = narrow_to_taps(force);
+    if nargin == 7
+        % taps passed in
+        start = startstop(1);
+        stop = startstop(2);
+    else
+        % find taps myself
+        [start, stop] = narrow_to_taps(force);
+    end
     [vel, accfilt, ~, forcefilt] = pose_to_vel(pose(start:stop,:), force(start:stop,:));
     speed = sqrt(sum(vel.^2,2));
     forcefiltsub = forcefilt - mass*accfilt/1000;

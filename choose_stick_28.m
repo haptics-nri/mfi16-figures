@@ -1,6 +1,6 @@
 % part 28 of /Users/alex/Documents/research/proton/code/calibration/motion/choose_stick.m
     % CV partition
-    cv = cvpartition(cell2mat(endeffs(i).features(endeffs(i).split==1, 1)), 'KFold', 5);
+    cv = cvpartition(cell2mat(endeffs(i).features(endeffs(i).split==1, 1)), 'KFold', 3);
     confusion = cell(1, cv.NumTestSets);
     predictions = cell(1, cv.NumTestSets);
     endeffs(i).gs.partition = cv;

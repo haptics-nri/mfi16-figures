@@ -29,8 +29,10 @@ function [v, int, vbody, vend, vint, vbodyint, vendint, accint, accworld, intbod
     fprintf('\tsmoothing timestamps\n');
     spikes = find(diff(int(:,1)) > 2*mean(diff(int(:,1))));
     for i=1:length(spikes)
-        N = 10;
-        int(spikes(i)-N:spikes(i)+N,1) = int(spikes(i)-N) + ((int(spikes(i)+N) - int(spikes(i)-N)) * linspace(0,1,2*N+1));
+        % average up to 10 values from the left and right (but don't overrun the array)
+        Nl = min([10 spikes(i)-1]);
+        Nr = min([10 size(int,1)-spikes(i)]);
+        int(spikes(i)-Nl:spikes(i)+Nr,1) = int(spikes(i)-Nl) + ((int(spikes(i)+Nr) - int(spikes(i)-Nl)) * linspace(0,1,Nl+Nr+1));
     end
 
     % transform Vicon into body frame and end-effector frame
@@ -51,7 +53,11 @@ function [v, int, vbody, vend, vint, vbodyint, vendint, accint, accworld, intbod
     vint     = [int(:,1) interp1(v(:,1),     v(:,2:4),     int(:,1)-off) slerp(v(:,1),     v(:,5:7),     int(:,1)-off)];
     vbodyint = [int(:,1) interp1(vbody(:,1), vbody(:,2:4), int(:,1)-off) slerp(vbody(:,1), vbody(:,5:7), int(:,1)-off)];
     vendint  = [int(:,1) interp1(vend(:,1),  vend(:,2:4),  int(:,1)-off) slerp(vend(:,1),  vend(:,5:7),  int(:,1)-off)];
-    accint   = [int(:,1) interp1(acc(:,1),   [mean(-acc(:,[2 5]), 2) -acc(:,7) acc(:,4)], int(:,1))];
+    if isempty(acc)
+        accint = [];
+    else
+        accint = [int(:,1) interp1(acc(:,1),   [mean(-acc(:,[2 5]), 2) -acc(:,7) acc(:,4)], int(:,1))];
+    end
     % transform Mini40 and IMU into body frame and world frame
     fprintf('\ttransforming force\n');
     intbody = int;
@@ -63,7 +69,9 @@ function [v, int, vbody, vend, vint, vbodyint, vendint, accint, accworld, intbod
         tf = xfconv(vbodyint(i,5:7));
         intworld(i,2:4) = tf * intbody(i,2:4)';
         intworld(i,5:7) = tf * intbody(i,5:7)';
-        accworld(i,2:4) = tf * accint(i,2:4)';
+        if ~isempty(accint)
+            accworld(i,2:4) = tf * accint(i,2:4)';
+        end
     end
 
     % subtract weight of end-effector

@@ -1,5 +1,11 @@
 function [v, int, dig_acc, dig_gyro, mic, ana_acc, mag, raw] = load_stick(prefix)
-
+%v, vicon (x, y, z, rotation)
+%int force (internal midi40)
+%dig_acc and dig_gyro: IMU data
+%mic: microphone
+%ana_acc: accelerometers
+%mag: magnatometer (IMU)
+%raw: raw force data (not going to be using this, most likely)
     v = csvload([prefix 'vicon.tsv'], ...
                 {'Timestamp', ...
                  'proton_Root_T_X_', 'proton_Root_T_Y_', 'proton_Root_T_Z_', ...

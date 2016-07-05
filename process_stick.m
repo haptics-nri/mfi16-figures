@@ -1,6 +1,24 @@
 function [v, int, vbody, vend, vint, vbodyint, vendint, accint, accworld, intbody, intworld, intworldsub] = process_stick(v, int, acc, mass, com, Hvb, Hmb, Hib, off)
+% Inputs:
+% v: vicon data (nx7; first column time)
+% int: force (time, force x, y, z torque x, y, z)
+% acc: vibrations (nx7: time, x, y, z from first, x, y, z from second)
+% mass/com/transformation matrices
+% off: time offset
+% 
+% Outputs:
+% v: Position of marker frame (time has been narrowed)
+% int: force
+% vbody: position of the body frame in world frame
+% vend: position of end in the world frame
+% ( )-int: interpolated so that sampling rate matches sampling rate of the
+%   force
+% accworld: acc in the world frame *plot this*
+% intbody: force in body frame
+% intworld: force in the world frame
+% intworldsub: force in the world frame compensated for gravity
 
-    % narrow to common time window
+%     % narrow to common time window
     fprintf('\tnarrowing\n');
     start = max([int(1,1)-off, v(1,1)]);
     stop = min([int(end,1)-off, v(end,1)]);

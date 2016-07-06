@@ -2,11 +2,11 @@
 % cross-validation
 
 % hyperparameters
-nbins = 1:2:10; % 20
+nbins = 7:2:20; % 20
 binmode = {'perceptual'}; % perceptual
-alpha = 0.1:0.05:0.5; % 25
-nu = .05:0.05:0.3; % .6
-gamma = 3:2:15; % 200
+alpha = 0.1:0.05:0.4; % 25
+nu = .1:0.05:0.3; % .6
+gamma = 1:.5:5; % 200
 stmode = true; % false
 
 gs_limits = [length(nbins) length(binmode) length(alpha) length(nu) length(gamma) length(stmode)];

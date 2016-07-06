@@ -15,5 +15,7 @@ choose_stick_16
 choose_stick_19
 %% cross-validation
 choose_stick_23
-%% run classification
-choose_stick_35
+%% run classification on test set
+choose_stick_37
+%% moar figures
+choose_stick_41

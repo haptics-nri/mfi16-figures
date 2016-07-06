@@ -185,11 +185,11 @@ save endeffdata endeffs
 %% cross-validation
 
 % hyperparameters
-nbins = 1:2:10; % 20
+nbins = 7:2:20; % 20
 binmode = {'perceptual'}; % perceptual
-alpha = 0.1:0.05:0.5; % 25
-nu = .05:0.05:0.3; % .6
-gamma = 3:2:15; % 200
+alpha = 0.1:0.05:0.4; % 25
+nu = .1:0.05:0.3; % .6
+gamma = 1:.5:5; % 200
 stmode = true; % false
 
 gs_limits = [length(nbins) length(binmode) length(alpha) length(nu) length(gamma) length(stmode)];
@@ -226,7 +226,7 @@ for i=1:2
         gs_nu = nu(gs_idx(gsi,4));
         gs_gamma = gamma(gs_idx(gsi,5));
         gs_stmode = stmode(gs_idx(gsi,6));
-        
+        %%
         iter = tic;
         fprintf('endeff %d grid search with nbins=%d, binmode=%s, alpha=%g, nu=%g, gamma=%g, stmode=%d\n', i, gs_nbins, gs_binmode, gs_alpha, gs_nu, gs_gamma, gs_stmode);
         cv_acc = zeros(cv.NumTestSets,1);
@@ -276,28 +276,125 @@ for i=1:2
                 cv_acc(cvi) = 0;
             end
         end
+        fprintf('\tGS #%d/%d: mean acc %g%%, iter %g s / elapsed %g s\n', gsi, size(gs_idx,1), 100*mean(cv_acc), toc(iter), toc(elapsed));
+        %%
         gs_acc(gsi) = mean(cv_acc);
         endeffs(i).gs.cv_acc{gsi} = cv_acc;
-        fprintf('\tGS #%d/%d: mean acc %g%%, iter %g s / elapsed %g s\n', gsi, size(gs_idx,1), 100*gs_acc(gsi), toc(iter), toc(elapsed));
     end
     endeffs(i).gs_acc = gs_acc;
 end
 
 save endeffdata endeffs
 
-%% run classification
+%% run classification on test set
+
+% XXX run grid search to completion first!
 
 for i=1:4
-    endeffs(i).model = svmtrain(endeffs(i).vectors.train(:,1), endeffs(i).vectors.train(:,2:end), '-q -m 1000 -s 1 -t 2 -n 0.1 -g 7.0');
-    endeffs(i).predictions = svmpredict(zeros(size(endeffs(i).vectors.test,1),1), endeffs(i).vectors.test(:,2:end), endeffs(i).model, '-q');
+    [~,gsi] = max(endeffs(i).gs_acc);
+    gs_nbins = nbins(gs_idx(gsi,1));
+    gs_binmode = binmode{gs_idx(gsi,2)};
+    gs_alpha = alpha(gs_idx(gsi,3));
+    gs_nu = nu(gs_idx(gsi,4));
+    gs_gamma = gamma(gs_idx(gsi,5));
+    gs_stmode = stmode(gs_idx(gsi,6));
+    
+    train_features = endeffs(i).features(endeffs(i).split==1, :);
+    test_features = endeffs(i).features(endeffs(i).split==2, :);
+            
+    train_vectors = [cell2mat(train_features(:,1)) ...
+                     romano_features('post', train_features(:,2:end), gs_nbins, gs_binmode, gs_alpha, gs_stmode)];
+    test_vectors  = [cell2mat(test_features (:,1)) ...
+                     romano_features('post', test_features (:,2:end), gs_nbins, gs_binmode, gs_alpha, gs_stmode)];
+                 
+    trainmean = mean(train_vectors(:,2:end));
+    train_vectors(:,2:end) = bsxfun(@minus, ...
+                                    train_vectors(:,2:end), ...
+                                    trainmean);
+    test_vectors (:,2:end) = bsxfun(@minus, ...
+                                    test_vectors (:,2:end), ...
+                                    trainmean);
+    trainrange = max(train_vectors(:,2:end)) - min(train_vectors(:,2:end));
+    train_vectors(:,2:end) = bsxfun(@rdivide, ...
+                                    train_vectors(:,2:end), ...
+                                    trainrange);
+    test_vectors (:,2:end) = bsxfun(@rdivide, ...
+                                    test_vectors (:,2:end), ...
+                                    trainrange);
+    
+    endeffs(i).model = svmtrain(train_vectors(:,1), train_vectors(:,2:end), sprintf('-q -m 1000 -s 1 -t 2 -n %g -g %g', gs_nu, gs_gamma));
+    endeffs(i).predictions = svmpredict(zeros(size(test_vectors,1),1), test_vectors(:,2:end), endeffs(i).model, '-q');
     endeffs(i).confusion = zeros(5,5);
     for j=1:5
         for k=1:5
-            endeffs(i).confusion(j,k) = nnz(endeffs(i).predictions(endeffs(i).vectors.test(:,1)==j) == k);
+            endeffs(i).confusion(j,k) = nnz(endeffs(i).predictions(test_vectors(:,1)==j) == k);
         end
     end
     endeffs(i).accuracy = sum(diag(endeffs(i).confusion))/sum(sum(endeffs(i).confusion));
 end
 
-%save endeffdata endeffs
+save endeffdata endeffs
 
+%% moar figures
+
+% XXX run grid search to completion first!
+
+material_names = {'ABS', 'paper plate', 'folder', 'MDF', 'canvas'};
+for i=1:4
+    [~,gsi] = max(endeffs(i).gs_acc);
+    gs_nbins = 3;%nbins(gs_idx(gsi,1));
+    gs_binmode = binmode{gs_idx(gsi,2)};
+    gs_alpha = alpha(gs_idx(gsi,3));
+    gs_nu = nu(gs_idx(gsi,4));
+    gs_gamma = gamma(gs_idx(gsi,5));
+    gs_stmode = stmode(gs_idx(gsi,6));
+    
+    figure;
+    f = romano_features('post', endeffs(i).features(:,2:end), gs_nbins, gs_binmode, gs_alpha, gs_stmode);
+    m = mean(f);
+    for j=1:5
+        subplot(5,1,j);
+        g = f(cell2mat(train_features(:,1))==j, :);
+        g = bsxfun(@minus, g, m);
+        g = bsxfun(@rdivide, g, max(g) - min(g));
+        g = [g mean(g(:,[end-5 end-3 end-1]), 2)];
+        g = sortrows(g, size(g,2));
+        g = g(:,1:end-1);
+        imagesc(g);
+        set(gca, 'xtick', []);
+        set(gca, 'ytick', []);
+        box off; axis off;
+        text(0.3, size(g,1)/2, ...
+             material_names{j}, ...
+             'FontSize', 14, ...
+             'HorizontalAlignment', 'right', ...
+             'Interpreter', 'tex');
+    end
+    
+    a = subplot(5,1,5);
+    axis on;
+    a.XRuler.Axle.Visible = 'off';
+    a.YRuler.Axle.Visible = 'off';
+    labels = {};
+    for j=1:gs_nbins
+        labels{end+1} = sprintf('Freq. bin %d', j);
+    end
+    things = {'F_N', 'V', 'F_T'};
+    for thing=1:length(things)
+        labels{end+1} = sprintf('Mean %s', things{thing});
+        if gs_stmode
+            labels{end+1} = sprintf('Std %s', things{thing});
+        end
+    end
+    for j=1:length(labels)
+        text(j, size(g,1)*1.2, labels{j}, 'Rotation',-60, 'FontSize',14);
+    end
+    colormap jet;
+    axes('Position', [0.05 0.05 0.95 0.9], 'Visible', 'off');
+    set(colorbar('ticks',[]), 'edgecolor','none');
+    text(1.08, 1, '1', 'fontsize',14);
+    text(1.08, 0, '0', 'fontsize',14);
+    
+    subplot(5,1,1);
+    title(sprintf('endeff %d feature vectors', i));
+end

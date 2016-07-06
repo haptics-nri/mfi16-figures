@@ -13,5 +13,9 @@
     elapsed = tic;
     for gsi=1:size(gs_idx,1)
         choose_stick_29
+        %%
+        choose_stick_30
+        %%
+        choose_stick_36
     end
     endeffs(i).gs_acc = gs_acc;

@@ -23,7 +23,7 @@ mfi16_figures_16
 mfi16_figures_21
 %%
 mfi16_figures_22
-%% SVM stuff (following Romano & KJK 2014)
+%% SVM stuff (following Romano & KJK 2014 + Strese & Schuwerk & Steinbach 2015)
 mfi16_figures_27
 %%
 mfi16_figures_33
@@ -42,4 +42,4 @@ mfi16_figures_52
 %% feature vectors -- first set gsi to optimal and run the grid search iter
 mfi16_figures_54
 %% confusion matrices -- first set gsi to optimal and run the test set
-mfi16_figures_56
+mfi16_figures_60

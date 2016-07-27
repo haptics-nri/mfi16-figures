@@ -15,11 +15,12 @@ H_bal2imu = [ 1       0       0       254.84
               0       0       0         1   ];
 
 syms x y z real;
+R = freecalib.R;
 H1 = [R [0 y z]';      0 0 0 1];
 H2 = [eye(3) [x 0 0]'; 0 0 0 1];
 S = solve(H1 * H2 * [0 0 0 1]' == [d 1]');
 
-H_vic2bod(1:3,1:3) = R';
+H_vic2bod(1:3,1:3) = R;
 H_vic2bod(2,4) = S.y;
 H_vic2bod(3,4) = S.z;
 H_bal2imu(1,4) = S.x;

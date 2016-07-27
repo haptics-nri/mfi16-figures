@@ -1,4 +1,4 @@
-function [v, int, dig_acc, dig_gyro, mic, ana_acc, mag, raw] = load_stick(prefix)
+function [v, int, dig_acc, dig_gyro, mic, ana_acc, mag, dt, raw] = load_stick(prefix)
 %v, vicon (x, y, z, rotation)
 %int force (internal midi40)
 %dig_acc and dig_gyro: IMU data
@@ -12,9 +12,20 @@ function [v, int, dig_acc, dig_gyro, mic, ana_acc, mag, raw] = load_stick(prefix
                  'proton_Root_A_X_', 'proton_Root_A_Y_', 'proton_Root_A_Z_'}, ...
                 {'Delimiter', '\t'});
 
-    int = csvload([prefix 'teensy.ft.csv'], ...
-                  [{'Timestamp'}, ...
-                   arrayfun(@(x) ['FT' num2str(x)], 0:29, 'UniformOutput',false)]);
+    try
+        int = csvload([prefix 'teensy.ft.csv'], ...
+                      [{'TeensyDt', 'Timestamp'}, ...
+                       arrayfun(@(x) ['FT' num2str(x)], 0:29, 'UniformOutput',false)]);
+        dt = int(:,1);
+        int = int(:,2:end);
+    catch err
+        if strcmp(err.message, 'Could not find column TeensyDt')
+            % old format
+            int = csvload([prefix 'teensy.ft.csv'], ...
+                          [{'Timestamp'}, ...
+                          arrayfun(@(x) ['FT' num2str(x)], 0:29, 'UniformOutput',false)]);
+        end
+    end
 
     acc = csvload([prefix 'teensy.acc.csv'], ...
                   {'Timestamp', 'FIFOPosition', 'AccX', 'AccY', 'AccZ'});

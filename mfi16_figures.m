@@ -60,7 +60,7 @@ v = csvload([prefix 'vicon.tsv'], ...
 
 int = csvload([prefix 'teensy.ft.csv'], ...
               [{'Timestamp'}, ...
-               arrayfun(@(x) ['FT' num2str(x)], 0:11, 'UniformOutput',false)]);
+               arrayfun(@(x) ['FT' num2str(x)], 0:29, 'UniformOutput',false)]);
            
 int = process_mini40(int, zeros(1,6));
 
@@ -119,11 +119,12 @@ H_bal2imu = [ 1       0       0       254.84
               0       0       0         1   ];
 
 syms x y z real;
+R = freecalib.R;
 H1 = [R [0 y z]';      0 0 0 1];
 H2 = [eye(3) [x 0 0]'; 0 0 0 1];
 S = solve(H1 * H2 * [0 0 0 1]' == [d 1]');
 
-H_vic2bod(1:3,1:3) = R';
+H_vic2bod(1:3,1:3) = R;
 H_vic2bod(2,4) = S.y;
 H_vic2bod(3,4) = S.z;
 H_bal2imu(1,4) = S.x;
@@ -231,7 +232,7 @@ for mi = 1:length(materials)
     end
 end
 
-%% SVM stuff (following Romano & KJK 2014)
+%% SVM stuff (following Romano & KJK 2014 + Strese & Schuwerk & Steinbach 2015)
 
 % DO NOT RUN THIS AGAIN -- TRAINING ON TEST SET WILL RESULT
 % instead load featuresplit20160329.mat
@@ -270,10 +271,10 @@ oc_answers = cell(1, cv.NumTestSets);
 mc_answers = cell(1, cv.NumTestSets);
 %%
 % hyperparameters
-nbins = 1:2:20; % 20
+nbins = 1:2:10; % 20
 binmode = {'perceptual'}; % perceptual
 alpha = 0.1:0.05:0.5; % 25
-nu = .05:0.05:0.7; % .6
+nu = .05:0.05:0.3; % .6
 gamma = 1:2:20; % 200
 stmode = true; % false
 
@@ -291,10 +292,10 @@ for i=2:size(gs_idx,1)
     end
 end
 %%
-%gs_acc = zeros(size(gs_idx,1),1);
-%clear romano_features; % clear persistent vars
+gs_acc = zeros(size(gs_idx,1),1);
+clear romano_features; % clear persistent vars
 elapsed = tic;
-for gsi=10090:size(gs_idx,1)
+for gsi=1:size(gs_idx,1)
     gs_nbins = nbins(gs_idx(gsi,1));
     gs_binmode = binmode{gs_idx(gsi,2)};
     gs_alpha = alpha(gs_idx(gsi,3));

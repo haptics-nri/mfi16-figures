@@ -1,5 +1,5 @@
 % part 27 of /Users/alex/Documents/research/proton/code/calibration/motion/mfi16_figures.m
-% SVM stuff (following Romano & KJK 2014)
+% SVM stuff (following Romano & KJK 2014 + Strese & Schuwerk & Steinbach 2015)
 
 % DO NOT RUN THIS AGAIN -- TRAINING ON TEST SET WILL RESULT
 % instead load featuresplit20160329.mat

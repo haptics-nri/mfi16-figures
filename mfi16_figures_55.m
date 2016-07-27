@@ -4,7 +4,7 @@
     g = f(cell2mat(train_features(:,1))==i, :);
     g = bsxfun(@minus, g, m);
     g = bsxfun(@rdivide, g, max(g) - min(g));
-    g = [g mean(g(:,(end-6):end), 2)];
+    g = [g mean(g(:,[end-5 end-3 end-1]), 2)];
     g = sortrows(g, size(g,2));
     g = g(:,1:end-1);
     imagesc(g);
@@ -17,7 +17,7 @@
          'HorizontalAlignment', 'right', ...
          'Interpreter', 'tex');
      
-    figure(fv2);
-    subplot(1,6,i);
-    cor = corrcoef(g(:,1:end-6));
-    imagesc(cor);
+    %figure(fv2);
+    %subplot(1,6,i);
+    %cor = corrcoef(g(:,1:end-6));
+    %imagesc(cor);

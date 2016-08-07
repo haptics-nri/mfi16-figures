@@ -31,27 +31,41 @@ save stickweights masses coms bias endeff_idx material_idx
 
 %% load texture data
 
+clear dir;
+datadir = '/Volumes/shared/Projects/Proton Pack/Data';
 date = '20160620';
 epdirs = dir([datadir filesep date filesep 'stick']);
+[epdirs.dir] = deal(date);
+date = '20160713'; % we re-did the 3/4 trials
+new_epdirs = dir([datadir filesep date filesep 'stick']);
+[new_epdirs.dir] = deal(date);
+epdirs = [epdirs; new_epdirs];
+epdirs(arrayfun(@(e) e.name(1) == '.', epdirs)) = [];
+date = '20160714'; % we re-did the rest of the 3/4 trials
+new_epdirs = dir([datadir filesep date filesep 'stick']);
+[new_epdirs.dir] = deal(date);
+epdirs = [epdirs; new_epdirs];
 epdirs(arrayfun(@(e) e.name(1) == '.', epdirs)) = [];
 
-eps = struct('endeff', cell(length(epdirs),1), ...
-             'material', cell(length(epdirs),1), ...
-             'flow', cell(length(epdirs),1), ...
-             'data', cell(length(epdirs),1), ...
-             'features', cell(length(epdirs),1));
+N = length(unique(arrayfun(@(e) e.name, epdirs, 'uniformoutput',false)));
+eps = struct('endeff', cell(N,1), ...
+             'material', cell(N,1), ...
+             'flow', cell(N,1), ...
+             'data', cell(N,1), ...
+             'features', cell(N,1));
+
 for i=1:length(epdirs)
-    fprintf('[%d/%d] %s\n', i, length(epdirs), epdirs(i).name);
     j = str2double(epdirs(i).name);
-    prefix = [datadir filesep date filesep 'stick' filesep epdirs(i).name];
+    prefix = [datadir filesep epdirs(i).dir filesep 'stick' filesep epdirs(i).name];
+    fprintf('[%d/%d] %s\n', i, length(epdirs), prefix);
     eps(j).flow = parse_flow([prefix filesep 'stick.flow']);
     eps(j).endeff = eps(j).flow.answers('tooling ball diameter').text;
     eps(j).material = eps(j).flow.answers('surface name').text;
-    [v, f, ~,~,~, a] = load_stick([prefix filesep]);
-    eps(j).data = struct('vicon', v, 'force', f, 'acc', a);
+    [v, f, da, dg, ~, a] = load_stick([prefix filesep]);
+    eps(j).data = struct('vicon', v, 'force', f, 'acc', a, 'imu', struct('acc', da, 'gyro', dg));
 end
 
-save stickdata eps
+%save stickdata eps
 
 %% sync vicon/force data
 
@@ -85,7 +99,7 @@ for idx = find(abs([eps.offset] - mean([eps.offset])) > 0.25)
     eps(idx).offset = (eps(idx-1).offset + eps(idx+1).offset)/2;
 end
 
-save stickdata eps
+%save stickdata eps
 
 %% process data
 
@@ -143,13 +157,17 @@ for e=1:4
     order = fliplr(order);
 end
 
-%% run classification with same parameters as in the paper
+%% pre-calculate features
 
 for i=1:length(eps)
     fprintf('%d calculating pre-features... ', i);
     j = endeff_idx(eps(i).endeff);
     if isfield(eps(i).data, 'f_comp')
-        eps(i).features.pre = romano_features('pre', eps(i).data.f_comp, eps(i).data.v_end, eps(i).data.a_end, masses(j), 0.05, [20 3], [eps(i).peaks(2)+1000 eps(i).peaks(3)-1000]);
+        % FIXME change this back to use analog accelerometers
+        %eps(i).features.pre = romano_features('pre', eps(i).data.f_comp, eps(i).data.v_end, eps(i).data.a_end, masses(j), 0.05, [20 3], [eps(i).peaks(2)+1000 eps(i).peaks(3)-1000]);
+        % use high-passed force instead of accelerometer
+        filtered = filter([1 .02-1], [.02-1 0], eps(i).data.f_comp(:,2:4));
+        eps(i).features.pre = romano_features('pre', eps(i).data.f_comp, eps(i).data.v_end, filtered, masses(j), 0.05, [20 3], [eps(i).peaks(2)+1000 eps(i).peaks(3)-1000]);
         eps(i).features.post = romano_features('post', eps(i).features.pre, 3, 'perceptual', 0.2, true);
     end
     fprintf('done\n');
@@ -180,7 +198,55 @@ for i=1:4
     endeffs(i).split = randsample(1:2, size(endeffs(i).features,1), true, [4/5 1/5]);
 end
 
-save endeffdata endeffs
+%save endeffdata endeffs
+
+%% run classification with same parameters as in the paper
+
+for i=1:4
+    train_features = endeffs(i).features(endeffs(i).split==1, :);
+    test_features  = endeffs(i).features(endeffs(i).split==2, :);
+
+    train_vectors = [cell2mat(train_features(:,1)) ...
+                     romano_features('post', train_features(:,2:end), 3, 'perceptual', 0.2, true)];
+    test_vectors  = [cell2mat(test_features (:,1)) ...
+                     romano_features('post', test_features (:,2:end), 3, 'perceptual', 0.2, true)];
+
+    trainmean = mean(train_vectors(:,2:end));
+    train_vectors(:,2:end) = bsxfun(@minus, ...
+                                    train_vectors(:,2:end), ...
+                                    trainmean);
+    test_vectors (:,2:end) = bsxfun(@minus, ...
+                                    test_vectors (:,2:end), ...
+                                    trainmean);
+    trainrange = max(train_vectors(:,2:end)) - min(train_vectors(:,2:end));
+    train_vectors(:,2:end) = bsxfun(@rdivide, ...
+                                    train_vectors(:,2:end), ...
+                                    trainrange);
+    test_vectors (:,2:end) = bsxfun(@rdivide, ...
+                                    test_vectors (:,2:end), ...
+                                    trainrange);
+
+    common_args = ' -q ';
+    train_args = [sprintf('-m 1000 -s 1 -t 2 -n %g -g %g', 0.1, 7) common_args];
+    test_args = common_args;
+
+    model = svmtrain(train_vectors(:,1), train_vectors(:,2:end), train_args);
+
+    if ~isempty(model)
+        confusion = zeros(5,5);
+        predictions = svmpredict(zeros(size(test_vectors,1),1), test_vectors(:,2:end), model, '-q');
+
+        for j=1:5
+            for k=1:5
+                confusion(j,k) = nnz(predictions(test_vectors(:,1)==j) == k);
+            end
+        end
+
+        fprintf('\tEndeff %d: MC %g%%\n', i, sum(diag(confusion))/sum(sum(confusion)));
+    else
+        fprintf('\tEndeff %d: failed to train\n', i);
+    end
+end
 
 %% cross-validation
 
@@ -284,7 +350,7 @@ for i=1:2
     endeffs(i).gs_acc = gs_acc;
 end
 
-save endeffdata endeffs
+%save endeffdata endeffs
 
 %% run classification on test set
 
@@ -333,28 +399,28 @@ for i=1:4
     endeffs(i).accuracy = sum(diag(endeffs(i).confusion))/sum(sum(endeffs(i).confusion));
 end
 
-save endeffdata endeffs
+%save endeffdata endeffs
 
 %% moar figures
 
 % XXX run grid search to completion first!
 
 material_names = {'ABS', 'paper plate', 'folder', 'MDF', 'canvas'};
-for i=1:4
-    [~,gsi] = max(endeffs(i).gs_acc);
-    gs_nbins = 3;%nbins(gs_idx(gsi,1));
-    gs_binmode = binmode{gs_idx(gsi,2)};
-    gs_alpha = alpha(gs_idx(gsi,3));
-    gs_nu = nu(gs_idx(gsi,4));
-    gs_gamma = gamma(gs_idx(gsi,5));
-    gs_stmode = stmode(gs_idx(gsi,6));
+for i=1:1
+    %[~,gsi] = max(endeffs(i).gs_acc);
+    gs_nbins = 7;%3;%nbins(gs_idx(gsi,1));
+    gs_binmode = 'perceptual';%binmode{gs_idx(gsi,2)};
+    gs_alpha = 0.2;%alpha(gs_idx(gsi,3));
+    gs_nu = 0.1;%nu(gs_idx(gsi,4));
+    gs_gamma = 7;%gamma(gs_idx(gsi,5));
+    gs_stmode = true;%stmode(gs_idx(gsi,6));
     
     figure;
     f = romano_features('post', endeffs(i).features(:,2:end), gs_nbins, gs_binmode, gs_alpha, gs_stmode);
     m = mean(f);
     for j=1:5
         subplot(5,1,j);
-        g = f(cell2mat(train_features(:,1))==j, :);
+        g = f(cell2mat(endeffs(i).features(:,1))==j, :);
         g = bsxfun(@minus, g, m);
         g = bsxfun(@rdivide, g, max(g) - min(g));
         g = [g mean(g(:,[end-5 end-3 end-1]), 2)];

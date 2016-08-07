@@ -9,5 +9,5 @@ for idx = find(abs([eps.offset] - mean([eps.offset])) > 0.25)
     choose_stick_7
 end
 
-save stickdata eps
+%save stickdata eps
 

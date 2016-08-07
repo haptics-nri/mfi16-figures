@@ -17,5 +17,5 @@ for i=1:4
     choose_stick_22
 end
 
-save endeffdata endeffs
+%save endeffdata endeffs
 

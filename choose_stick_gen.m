@@ -9,13 +9,15 @@ choose_stick_5
 choose_stick_8
 %% some plots
 choose_stick_12
-%% run classification with same parameters as in the paper
+%% pre-calculate features
 choose_stick_16
 %% test/train split
 choose_stick_19
-%% cross-validation
+%% run classification with same parameters as in the paper
 choose_stick_23
+%% cross-validation
+choose_stick_29
 %% run classification on test set
-choose_stick_37
+choose_stick_43
 %% moar figures
-choose_stick_41
+choose_stick_47

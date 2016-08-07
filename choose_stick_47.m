@@ -1,2 +1,9 @@
 % part 47 of /Users/alex/Documents/research/proton/code/calibration/motion/choose_stick.m
-        text(j, size(g,1)*1.2, labels{j}, 'Rotation',-60, 'FontSize',14);
+% moar figures
+
+% XXX run grid search to completion first!
+
+material_names = {'ABS', 'paper plate', 'folder', 'MDF', 'canvas'};
+for i=1:1
+    choose_stick_48
+end

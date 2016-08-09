@@ -18,6 +18,11 @@ function [v, int, vbody, vend, vint, vbodyint, vendint, accint, accworld, intbod
 % intworld: force in the world frame
 % intworldsub: force in the world frame compensated for gravity
 
+%Testing out this offset thing
+off = findOffset(v, int);
+off = -off
+
+
 %     % narrow to common time window
     fprintf('\tnarrowing\n');
     start = max([int(1,1)-off, v(1,1)]);

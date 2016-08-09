@@ -1,4 +1,4 @@
-function [vel, acc, posefilt, forcefilt] = pose_to_vel(pose, force)
+function [vel, acc, posefilt, forcefilt, anglefilt] = pose_to_vel(pose, force)
 
     % unity-gain first-order low-pass filter
     a = .02;
@@ -9,6 +9,7 @@ function [vel, acc, posefilt, forcefilt] = pose_to_vel(pose, force)
     %   - cross(w, r) where w = angular velocity vector at ball center, r = ball radius
     posefilt = filtfilt(a, b, pose(:,2:4));
     forcefilt = filtfilt(a, b, force(:,2:4)); % why not
+    anglefilt = filtfilt(a, b, pose(:,5:end)); %for the angles
     dx = diff(posefilt);
     dt = diff(pose(:,1));
     vel = filtfilt(a, b, bsxfun(@rdivide, dx, dt));

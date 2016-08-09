@@ -1,6 +1,14 @@
 function sl = visforce(force, pose, video, video_offset, mass, com, trialDate, trialName,vibration)
-%Date is the date the trial was taken
+%VISFORCE Creates the graphs/visualization of the given data
+%
+%force is force data, pose is position data
+%video is the name/location of the video file
+%video_offset is the offset between the video and the data
+%mass is the mass of the end effector
+%com is the center of mass of the end effector
+%trialDate is the date the trial was taken
 %trialName is the name of the trial
+%vibration is the vibration data
 
 
 addpath(genpath('RANSAC-Toolbox'))
@@ -9,10 +17,11 @@ addpath('vlc-matlab')
 vlc_setup
 %vlc_wrapper cleanup % FIXME crashes matlab sometimes
 
+%Aligning and filtering data
 [start, stop, taps] = narrow_to_taps(force);
-[vel, acc, posefilt, forcefilt] = pose_to_vel(pose(start:stop,:), force(start:stop,:));
+[vel, acc, posefilt, forcefilt, anglefilt] = pose_to_vel(pose(start:stop,:), force(start:stop,:));
 
-%Making initial point (0,0,0)
+%Making initial position point (0,0,0)
 posefilt(:,1) = posefilt(:,1) - posefilt(1,1);
 posefilt(:,2) = posefilt(:,2) - posefilt(1,2);
 posefilt(:,3) = posefilt(:,3) - posefilt(1,3);
@@ -21,6 +30,7 @@ posefilt(:,3) = posefilt(:,3) - posefilt(1,3);
 % correct for non-quasistatic motion
 forcefilt = forcefilt - mass*acc/1000;
 
+%Various ranges/scaling factors
 xyzrange = [min(posefilt(:,1)) max(posefilt(:,1)) ...
     min(posefilt(:,2)) max(posefilt(:,2)) ...
     min(posefilt(:,3)) max(posefilt(:,3))];
@@ -34,20 +44,22 @@ vscale   = vrange(2) - vrange(1);
 arange   = [min(min(acc(:,1:2))) max(max(acc(:,1:2)))];
 ascale   = arange(2) - arange(1);
 
-xyf_x = @(i) [posefilt(i-start+1,1), posefilt(i-start+1,1) + forcefilt(i-start+1,1)*xyzscale/xyfscale];
-xyf_y = @(i) [posefilt(i-start+1,2), posefilt(i-start+1,2) + forcefilt(i-start+1,2)*xyzscale/xyfscale];
+%Equations to create lines later
+scale = 1.7;
+xyf_x = @(i) [posefilt(i-start+1,1), posefilt(i-start+1,1) + forcefilt(i-start+1,1)*xyzscale/xyfscale * scale];
+xyf_y = @(i) [posefilt(i-start+1,2), posefilt(i-start+1,2) + forcefilt(i-start+1,2)*xyzscale/xyfscale * scale];
 xyf_z = @(i) [posefilt(i-start+1,3), posefilt(i-start+1,3)];
 zf_x  = @(i) [posefilt(i-start+1,1), posefilt(i-start+1,1)];
 zf_y  = @(i) [posefilt(i-start+1,2), posefilt(i-start+1,2)];
-zf_z  = @(i) [posefilt(i-start+1,3), posefilt(i-start+1,3) + forcefilt(i-start+1,3)*xyzscale/zfscale];
-vel_x = @(i) [posefilt(i-start+1,1), posefilt(i-start+1,1) + vel(i-start+1,1)*xyzscale/vscale];
-vel_y = @(i) [posefilt(i-start+1,2), posefilt(i-start+1,2) + vel(i-start+1,2)*xyzscale/vscale];
+zf_z  = @(i) [posefilt(i-start+1,3), posefilt(i-start+1,3) + forcefilt(i-start+1,3)*xyzscale/zfscale * scale];
+vel_x = @(i) [posefilt(i-start+1,1), posefilt(i-start+1,1) + vel(i-start+1,1)*xyzscale/vscale * scale];
+vel_y = @(i) [posefilt(i-start+1,2), posefilt(i-start+1,2) + vel(i-start+1,2)*xyzscale/vscale * scale];
 vel_z = @(i) [posefilt(i-start+1,3), posefilt(i-start+1,3)];
-acc_x = @(i) [posefilt(i-start+1,1), posefilt(i-start+1,1) + acc(i-start+1,1)*xyzscale/ascale];
-acc_y = @(i) [posefilt(i-start+1,2), posefilt(i-start+1,2) + acc(i-start+1,2)*xyzscale/ascale];
+acc_x = @(i) [posefilt(i-start+1,1), posefilt(i-start+1,1) + acc(i-start+1,1)*xyzscale/ascale * scale ];
+acc_y = @(i) [posefilt(i-start+1,2), posefilt(i-start+1,2) + acc(i-start+1,2)*xyzscale/ascale * scale];
 acc_z = @(i) [posefilt(i-start+1,3), posefilt(i-start+1,3)];
 
-cyl_xyz = @(i) nth(6, [1 2 3], @cylinder_surf, 1, 5, 0, xfconv(pose(i,5:7))*[0 0 -1]', posefilt(i-start+1,1:3), 1, [0 0 0]);
+%cyl_xyz = @(i) nth(6, [1 2 3], @cylinder_surf, 1, 5, 0, xfconv(pose(i,5:7))*[0 0 -1]', posefilt(i-start+1,1:3), 1, [0 0 0]);
 
 txt_x = @(i) posefilt(i-start+1,1) + 2;
 txt_y = @(i) posefilt(i-start+1,2) + 2;
@@ -57,6 +69,8 @@ txt_z = @(i) posefilt(i-start+1,3) - 3;
 %     sqrt(sum(vel(i-start+1,1:2).^2,2)), ...
 %     sqrt(sum(forcefilt(i-start+1,1:2).^2)),  forcefilt(i-start+1,3), ...
 %     sqrt(sum(forcefilt(i-start+1,1:2).^2)) / forcefilt(i-start+1,3));
+
+%Function to get values for table
 txt_text = @(i) {sprintf('%g mm', posefilt(i-start+1,1)); ...
     sprintf('%g mm',posefilt(i-start+1,2)); ...
     sprintf('%g mm',posefilt(i-start+1,3)); ...
@@ -71,17 +85,19 @@ pc_x = @(i) [pose(i,1) pose(i,1)] - pose(1,1);
 fc_x = @(i) [force(i,1) force(i,1)] - force(1,1);
 vib_x = @(i) [vibration(i,1) vibration(i,1)] - force(1,1);
 
+%Function for title text
 title_text = @(i) sprintf('t=%g s (i=%d)', force(i,1) - force(1,1), i);
 
 clf;
 %Puts name of trial on top of the figure header
 set(gcf,'NumberTitle','off','Name', [trialName ': ' trialDate])
 
+%General layout of figure
 p = get(gcf, 'Position');
 set(gcf, 'Position', [p(1:2) 1024 512]);
-ax_slider = subplot(2,3,[1 4]);%subplot(2,2,[1 3]);
-ax_pose   = subplot(3,2,2); %subplot(2,2,2);
-ax_force  = subplot(3,2,4);%subplot(2,2,4);
+ax_slider = subplot(2,3,[1 4]);
+ax_pose   = subplot(3,2,2); 
+ax_force  = subplot(3,2,4);
 ax_vibrate = subplot(3,2,6);
 %set(gcf, 'CloseRequestFcn', @(s,c) {funwrap(@vlc_wrapper, {'cleanup'}) close});
 % fucking matlab crashes all the fucking time when I try to do this ^
@@ -89,16 +105,35 @@ ax_vibrate = subplot(3,2,6);
 %Plotting/updating the plot for the slider
 axes(ax_slider);
 hold on;
-cyl = feval(@(xyz) surf(xyz{1}, xyz{2}, xyz{3}), cyl_xyz(start));
-xyf = line(xyf_x(start), xyf_y(start), xyf_z(start), 'Color','r');
-zf  = line(zf_x(start),  zf_y(start),  zf_z(start),  'Color','r');
-vel = line(vel_x(start), vel_y(start), vel_z(start), 'Color','g');
-acc = line(acc_x(start), acc_y(start), acc_z(start), 'Color','b');
-%txt = text(txt_x(start), txt_y(start), txt_z(start), txt_text(start));
 
+    %Making the cylinder to show position/rotation
+    [xcyl, ycyl, zcyl] = cylinder(4);
+    zcyl = zcyl*40;
+    oldCylValues = {xcyl; ycyl; zcyl};
+    
+    %Updating and plotting the cylinder in its first position
+    newCylPoints = rotateBody(oldCylValues, posefilt(1,:), anglefilt(1,:),1);
+    cylPlot = surf(newCylPoints{1}, newCylPoints{2}, newCylPoints{3});
+    
+    %Making the sphere to show position/rotation
+    [xsphere, ysphere, zsphere] = sphere;
+    xsphere = xsphere * 12; ysphere = ysphere * 12; zsphere = zsphere * 12;
+    oldSphereValues = {xsphere; ysphere; zsphere};
+    
+    %Updating and plotting the sphere in its first position
+    newSpherePoints = rotateBody(oldSphereValues, posefilt(1,:), anglefilt(1,:), 2);
+    spherePlot = surf(newSpherePoints{1}, newSpherePoints{2}, newSpherePoints{3});
+    
+%Plotting the lines (force, velocity, etc.)
+xyf = line(xyf_x(start), xyf_y(start), xyf_z(start), 'Color','r','Linewidth',2);
+zf  = line(zf_x(start),  zf_y(start),  zf_z(start),  'Color','r','Linewidth',2);
+vel = line(vel_x(start), vel_y(start), vel_z(start), 'Color','g','Linewidth',2);
+acc = line(acc_x(start), acc_y(start), acc_z(start), 'Color','b','LineWidth',2);
+
+%Making graph look nice
 hold off;
 grid on;
-axis vis3d;
+axis equal vis3d;
 siz = xyzscale + 5;
 axis([xyzrange(1)-siz xyzrange(2)+siz ...
     xyzrange(3)-siz xyzrange(4)+siz ...
@@ -106,6 +141,7 @@ axis([xyzrange(1)-siz xyzrange(2)+siz ...
 xlabel X;
 ylabel Y;
 zlabel Z;
+
 %Adjusting the position of the plot slightly
 slider_pos = get(ax_slider,'Position');
 set(ax_slider,'Position',[slider_pos(1) slider_pos(2)+.04 slider_pos(3:4)*.93])
@@ -165,12 +201,20 @@ if exist(video,'file')
     q = @(i) {
         set(htitle, 'String', title_text(i))
         
-        % slider figure
+        %Updating the cone
         feval(@(xyz) ...
-        set(cyl, 'XData', xyz{1}, ...
-        'YData', xyz{2}, ...
-        'ZData', xyz{3}), ...
-        cyl_xyz(i))
+       set(cylPlot, 'Xdata',xyz{1}, ...
+       'YData',xyz{2}, ...
+       'ZData', xyz{3}), ...
+       rotateBody(oldCylValues, posefilt(i-start+1,:), anglefilt(i-start+1,:),1))
+       
+        %Updating the sphere
+       feval(@(xyz) ...
+       set(spherePlot, 'Xdata', xyz{1}, ...
+       'YData', xyz{2}, ...
+       'Zdata', xyz{3}), ...
+       rotateBody(oldSphereValues, posefilt(i-start+1,:), anglefilt(i-start+1,:),2))
+       
         set(xyf, 'XData', xyf_x(i), ...
         'YData', xyf_y(i), ...
         'ZData', xyf_z(i))
@@ -200,12 +244,21 @@ else
     q = @(i) {
         set(htitle, 'String', title_text(i))
         
-        % slider figure
-        feval(@(xyz) ...
-        set(cyl, 'XData', xyz{1}, ...
-        'YData', xyz{2}, ...
-        'ZData', xyz{3}), ...
-        cyl_xyz(i))
+       %Updating the cone
+       feval(@(xyz) ...
+       set(cylPlot, 'Xdata',xyz{1}, ...
+       'YData',xyz{2}, ...
+       'ZData', xyz{3}), ...
+       rotateBody(oldCylValues, posefilt(i-start+1,:), anglefilt(i-start+1,:),1))
+       
+       %Updating the sphere
+       feval(@(xyz) ...
+       set(spherePlot, 'Xdata', xyz{1}, ...
+       'YData', xyz{2}, ...
+       'Zdata', xyz{3}), ...
+       rotateBody(oldSphereValues, posefilt(i-start+1,:), anglefilt(i-start+1,:),2))
+       
+       %Updating various lines
         set(xyf, 'XData', xyf_x(i), ...
         'YData', xyf_y(i), ...
         'ZData', xyf_z(i))
@@ -218,8 +271,8 @@ else
         set(acc, 'XData', acc_x(i), ...
         'YData', acc_y(i), ...
         'ZData', acc_z(i))
-%         set(txt, 'Position', [txt_x(i), txt_y(i), txt_z(i)], ...
-%         'String', txt_text(i))
+
+        %Updating the table
          set(tTable,'Data',txt_text(i))
 
 
@@ -231,6 +284,7 @@ else
     
 end
 
+%Setting the function for the slider
 p = @(s,e) q(round(s.Value));
 
 %Slider
@@ -239,13 +293,14 @@ sl = uicontrol('Style','slider', ...
     'SliderStep',[.001 .1], ...
     'Position',[100 10 400 20], ...
     'CreateFcn',p, 'Callback',p);
-
 uicontrol('Style','text', ...
     'Position',[45 10 50 20], ...
-    'String',sprintf('%g', pose(start,1)-pose(1,1))); %posefilt(start,1)-posefilt(1,1)));
+    'String',sprintf('%g', pose(start,1)-pose(1,1)));
 uicontrol('Style','text', ...
     'Position',[505 10 50 20], ...
-    'String',sprintf('%g', pose(stop,1)-pose(1,1)));%posefilt(end,1)-posefilt(1,1)));
+    'String',sprintf('%g', pose(stop,1)-pose(1,1)));
+
+
 %Quit button
 uicontrol('Style','pushbutton',...
     'Position', [850 10 100 40], ...
@@ -254,7 +309,7 @@ uicontrol('Style','pushbutton',...
 %Choose a new data set
 uicontrol('Style','pushbutton',...
     'Position', [720 10 100 40], ...
-    'String', 'Choose New Data','Callback',@switchData)
+    'String', 'Choose New Data','Callback',@NewDataSet) %switchData)
 
 %Looking at the material properties
 uicontrol('Style','pushbutton',...
@@ -266,60 +321,9 @@ uicontrol('Style','pushbutton',...
         close(gcf)
     end
 
-    function switchData(~,~)
-        %Changes the current data into a new set of data
-        %Selects the folder containing the data
-        foldername = [uigetdir, '/'];
-        
-        %Making sure that a file was actually chosen; if not, the following
-        %steps are skipped
-        if ~strcmp(foldername,[0 '/'])
-            
-            %Data needed
-            H_vic2bod = [ 0.9912   -0.0236   -0.1303         0
-                0.0162    0.9982   -0.0571   36.0685
-                0.1314    0.0545    0.9898 -511.6330
-                0         0         0    1.0000 ];
-            H_m402bod = [      0         0    1.0000  108.9900
-                1.0000         0         0    0.5300
-                0    1.0000         0   -2.9800
-                0         0         0    1.0000 ];
-            H_bal2imu = [ 1.0000         0         0  254.3402
-                0    1.0000         0         0
-                0         0    1.0000         0
-                0         0         0    1.0000 ];
-            
-            %Getting the new date and trial name
-            numStart = regexp(foldername,'\d{8}','once'); %Finds where #s begin
-            if ~isempty(numStart)
-                dateRaw = foldername(numStart:numStart+7);
-                trialDate = [dateRaw(1:4),'-',dateRaw(5:6),'-',dateRaw(7:end)]; %Formatting
-            else trialDate = 'Date Unknown';
-            end
-            
-            %Putting in the name of the trial
-            %Assumes that this "name" is the last part of the file
-            %extension (TODO: Change this maybe? Make it a better name?
-            slashes = find(foldername=='/');
-            trialName = foldername(slashes(end-1)+1: end-1);
-            
-            
-            if exist([foldername 'teensy.ft.csv'],'file') ...
-                    && exist([foldername 'teensy.acc.csv'],'file')...
-                    && exist([foldername 'teensy.gyro.csv'],'file')...
-                    && exist([foldername 'teensy.mag.csv'],'file')
-                close all
-                clc
-                %Run the analysis
-                [v, f, ~,~,~, a] = load_stick(foldername);
-                [~,~,~,~,~,~, v, ~,vibration,~,~, f] = ...
-                    process_stick(v, f, a, mass, com, H_vic2bod, H_m402bod, H_bal2imu, -2.5887);
-                visforce(f, v, [foldername 'video_small.mov'], 20, mass, com, trialDate, trialName,vibration);
-            else disp('        Please choose a folder with appropriate data files')
-            end
-        end
+    function NewDataSet(~,~)
+        go_visforce
     end
-
 
     function propMenu(~,~)
         %Getting information of new/old figure windows
@@ -340,6 +344,7 @@ uicontrol('Style','pushbutton',...
         else materialName = 'Unknown';
             toolingBall = 'Unknown';
         end
+        
         stf = 90;
         %Placing information on the figure window
         uicontrol('Style','Text','String','Date:', 'Position',[-10 370-stf 200 100],...

@@ -1,4 +1,4 @@
-function [v, int, vbody, vend, vint, vbodyint, vendint, accint, accworld, intbody, intworld, intworldsub] = process_stick(v, int, acc, mass, com, Hvb, Hmb, Hib, off)
+function [v, int, vbody, vend, vint, vbodyint, vendint, accint, accworld, intbody, intworld, intworldsub, start, stop] = process_stick(v, int, acc, mass, com, Hvb, Hmb, Hib, off)
 % Inputs:
 % v: vicon data (nx7; first column time)
 % int: force (time, force x, y, z torque x, y, z)
@@ -18,17 +18,35 @@ function [v, int, vbody, vend, vint, vbodyint, vendint, accint, accworld, intbod
 % intworld: force in the world frame
 % intworldsub: force in the world frame compensated for gravity
 
-%Testing out this offset thing
-off = findOffset(v, int);
-off = -off
 
+    if 1/mean(diff(v(:,1))) < 50
+        is_bluefox = true;
+    else
+        is_bluefox = false;
+    end
 
-%     % narrow to common time window
-    fprintf('\tnarrowing\n');
-    start = max([int(1,1)-off, v(1,1)]);
-    stop = min([int(end,1)-off, v(end,1)]);
-    int = int(int(:,1)-off>=start+.03 & int(:,1)-off<=stop-.03, :); %%% HACK
-    v = v(v(:,1)>=start & v(:,1)<=stop, :);
+    if nargin == 8 || isempty(off)
+        if is_bluefox
+            off = 0;
+        else
+            %Testing out this offset thing
+            off = -findOffset(v, int);
+        end
+    end
+
+    if ~isempty(v)
+        % narrow to common time window
+        fprintf('\tnarrowing\n');
+        if is_bluefox
+            fudge = 1;
+        else
+            fudge = 0;
+        end
+        start = max([int(1,1)-off, v(1+fudge,1)]);
+        stop = min([int(end,1)-off, v(end-fudge,1)]);
+        int = int(int(:,1)-off>=start+.03 & int(:,1)-off<=stop-.03, :); %%% HACK
+        v = v(v(:,1)>=start & v(:,1)<=stop, :);
+    end
     
     % remove spikes (HACK)
     fprintf('\tsmoothing timestamps\n');
@@ -44,20 +62,28 @@ off = -off
     fprintf('\ttransforming pose\n');
     vbody = v;
     vend = v;
-    for i=1:size(vbody,1)
-        tf = xfconv(v(i,2:7)) * Hvb;
-        vbody(i,2:4) = tf(1:3,4);
-        vbody(i,5:7) = xfconv(tf(1:3,1:3));
-        tf = tf * Hib;
-        vend(i,2:4) = tf(1:3,4);
-        vend(i,5:7) = xfconv(tf(1:3,1:3));
+    if ~is_bluefox
+        for i=1:size(vbody,1)
+            tf = xfconv(v(i,2:7)) * Hvb;
+            vbody(i,2:4) = tf(1:3,4);
+            vbody(i,5:7) = xfconv(tf(1:3,1:3));
+            tf = tf * Hib;
+            vend(i,2:4) = tf(1:3,4);
+            vend(i,5:7) = xfconv(tf(1:3,1:3));
+        end
     end
 
     % upsample and offset Vicon/accel to match Mini40
     fprintf('\tupsampling\n');
-    vint     = [int(:,1) interp1(v(:,1),     v(:,2:4),     int(:,1)-off) slerp(v(:,1),     v(:,5:7),     int(:,1)-off)];
-    vbodyint = [int(:,1) interp1(vbody(:,1), vbody(:,2:4), int(:,1)-off) slerp(vbody(:,1), vbody(:,5:7), int(:,1)-off)];
-    vendint  = [int(:,1) interp1(vend(:,1),  vend(:,2:4),  int(:,1)-off) slerp(vend(:,1),  vend(:,5:7),  int(:,1)-off)];
+    if isempty(v)
+        vint = [];
+        vbodyint = [];
+        vendint = [];
+    else
+        vint     = [int(:,1) interp1(v(:,1),     v(:,2:4),     int(:,1)-off) slerp(v(:,1),     v(:,5:7),     int(:,1)-off)];
+        vbodyint = [int(:,1) interp1(vbody(:,1), vbody(:,2:4), int(:,1)-off) slerp(vbody(:,1), vbody(:,5:7), int(:,1)-off)];
+        vendint  = [int(:,1) interp1(vend(:,1),  vend(:,2:4),  int(:,1)-off) slerp(vend(:,1),  vend(:,5:7),  int(:,1)-off)];
+    end
     if isempty(acc)
         accint = [];
     else
@@ -88,7 +114,4 @@ off = -off
         intworldsub(i,5:7) = intworld(i,5:7) - cross(com, fg)'; % FIXME this needs to be done in the body frame
     end
     
-    % HACK smooth complex parts of intworldsub
-    
-
 end

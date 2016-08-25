@@ -7,9 +7,9 @@ function vq = slerp(x, v, xq)
     for i = 1:length(xq)
         q = xq(i);
         if q < x(1)
-            error('SLERP: query point below input range');
+            vq(i,:) = x(1);
         elseif q > x(end)
-            error('SLERP: query point above input range');
+            vq(i,:) = x(end);
         else
             exact = find(q == x, 1);
             if ~isempty(exact)

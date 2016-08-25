@@ -37,14 +37,9 @@ function [v, int, vbody, vend, vint, vbodyint, vendint, accint, accworld, intbod
     if ~isempty(v)
         % narrow to common time window
         fprintf('\tnarrowing\n');
-        if is_bluefox
-            fudge = 1;
-        else
-            fudge = 0;
-        end
-        start = max([int(1,1)-off, v(1+fudge,1)]);
-        stop = min([int(end,1)-off, v(end-fudge,1)]);
-        int = int(int(:,1)-off>=start+.03 & int(:,1)-off<=stop-.03, :); %%% HACK
+        start = max([int(1,1)-off, v(1,1)]);
+        stop = min([int(end,1)-off, v(end,1)]);
+        int = int(int(:,1)-off>=start & int(:,1)-off<=stop, :);
         v = v(v(:,1)>=start & v(:,1)<=stop, :);
     end
     

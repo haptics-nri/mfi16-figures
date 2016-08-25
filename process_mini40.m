@@ -32,7 +32,7 @@ function [ft, mic, acc, raw] = process_mini40(raw, bias, tf)
     acc = [raw(:,1) bitshift(raw(:,[20 22 24 26 28 30]), 8) + raw(:,[21 23 25 27 29 31])];
     ft = convsign(ft);
     ft(:,2:end) = ft(:,2:end) * 0.002;
-    acc(:,2:end) = (acc(:,2:end) - 2048)/4096 * (16*9.81);
+    acc(:,2:end) = (acc(:,2:end) - 2048)/4096 * (16*9.81); % w/ int ref, zero is still at 3.3/2
 
     % bias and transform
     ft(:,2:end) = (tf * bsxfun(@minus, ft(:,2:end), bias)')';

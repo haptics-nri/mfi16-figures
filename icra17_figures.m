@@ -169,7 +169,7 @@ end
 for m = 1:length(materials)
     ep = data(materials{m});
     
-    [~,~,~,~,~,~, vei, ai, ~,~,~, iws] = process_stick(ep.v, ep.int, ep.acc, mass, [0;0;0], H_vic2bod, H_m402bod, H_bal2imu);
+    [~,~,~,~,~,~, vei, ai, ~,~,~, iws] = process_stick(ep.v, ep.int, ep.acc, mass, [0;0;0], H_vic2bod, H_m402bod, H_bal2imu, -ep.off);
     ep.vei = vei;
     ep.ai = ai;
     ep.iws = iws;
@@ -248,7 +248,7 @@ for i=2:size(gs_idx,1)
 end
 %%
 gs_acc = zeros(size(gs_idx,1),1);
-clear romano_features; % clear persistent var
+clear romano_features; % clear persistent vars
 elapsed = tic;
 for gsi=1:size(gs_idx,1)
     gs_nbins = nbins(gs_idx(gsi,1));

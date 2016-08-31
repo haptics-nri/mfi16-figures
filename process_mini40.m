@@ -1,6 +1,6 @@
-function [ft, mic, acc, raw] = process_mini40(raw, bias, tf)
+function [ft, mic, acc, raw] = process_mini40(accref, raw, bias, tf)
 
-    if nargin < 3
+    if nargin < 4
         % from mfgr on proton pack internal Mini40
         tf =           [ 0.00679   0.01658  -0.04923   6.20566   0.15882  -6.19201 
                          0.11638  -7.31729  -0.04322   3.54949  -0.08024   3.57115 
@@ -8,7 +8,7 @@ function [ft, mic, acc, raw] = process_mini40(raw, bias, tf)
                          0.00022  -0.04140   0.14917   0.02435  -0.15234   0.01567 
                         -0.16837  -0.00464   0.08561  -0.03311   0.08763   0.03721 
                          0.00128  -0.08962   0.00085  -0.08785   0.00204  -0.08790 ];
-        if nargin < 2
+        if nargin < 3
             % measured on proton pack internal Mini40
             x = load('mini40_calib.mat');
             bias = (tf\[x.fbias x.tbias]')';
@@ -32,7 +32,10 @@ function [ft, mic, acc, raw] = process_mini40(raw, bias, tf)
     acc = [raw(:,1) bitshift(raw(:,[20 22 24 26 28 30]), 8) + raw(:,[21 23 25 27 29 31])];
     ft = convsign(ft);
     ft(:,2:end) = ft(:,2:end) * 0.002;
-    acc(:,2:end) = (acc(:,2:end) - 2048)/4096 * (16*9.81); % w/ int ref, zero is still at 3.3/2
+    ref = zeros(size(acc,1),1);
+    ref(accref == 100) = 2048;
+    ref(accref == 104) = 1650;
+    acc(:,2:end) = bsxfun(@minus, acc(:,2:end), ref)/4096 * (16*9.81); % w/ int ref, zero is still at 3.3/2
 
     % bias and transform
     ft(:,2:end) = (tf * bsxfun(@minus, ft(:,2:end), bias)')';

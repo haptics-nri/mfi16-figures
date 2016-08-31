@@ -1,9 +1,13 @@
-function offset = findOffset(v,f)
+function offset = findOffset(v, f, max_offset)
 %Finds the offset between the force data and the vicon data
 %f is the force data, v is the vicon data
 %
 %If it cannot find a reasonable offset, then the offset will be set to 0
 %      (Find a better number for this)
+
+    if nargin < 3
+        max_offset = 20;
+    end
 
     if isempty(v)
         offset = 0;
@@ -26,7 +30,7 @@ function offset = findOffset(v,f)
     % but we might have some misidentified peaks.
     offset = mean(vtimes - ftimes);
     
-    if abs(offset) > 20
+    if abs(offset) > max_offset
         offset = 0;
         disp('Could not find appropriate offset. Data may not be aligned.')
     end

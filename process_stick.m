@@ -30,7 +30,7 @@ function [v, int, vbody, vend, vint, vbodyint, vendint, accint, accworld, intbod
             off = 0;
         else
             %Testing out this offset thing
-            off = -findOffset(v, int);
+            off = -findOffset(v, int, 100)
         end
     end
 

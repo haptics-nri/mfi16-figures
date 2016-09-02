@@ -22,10 +22,11 @@ function [v, int, dig_acc, dig_gyro, mic, ana_acc, mag, dt, opto, bio, motrak] =
         
         try
             int = csvload([prefix ftname], ...
-                          [{'TeensyDt', 'Timestamp'}, ...
+                          [{'TeensyDt', 'PacketNumber', 'Timestamp'}, ...
                            arrayfun(@(x) ['FT' num2str(x)], 0:29, 'UniformOutput',false)]);
             dt = int(:,1);
-            int = int(:,2:end);
+            accref = int(:,2);
+            int = int(:,3:end);
         catch err
             if strcmp(err.message, 'Could not find column TeensyDt')
                 % old format
@@ -34,6 +35,7 @@ function [v, int, dig_acc, dig_gyro, mic, ana_acc, mag, dt, opto, bio, motrak] =
                               arrayfun(@(x) ['FT' num2str(x)], 0:29, 'UniformOutput',false)]);
             end
             dt = [];
+            accref = 100*ones(size(int,1),1);
         end
 
         acc = csvload([prefix 'teensy.acc.csv'], ...
@@ -44,7 +46,7 @@ function [v, int, dig_acc, dig_gyro, mic, ana_acc, mag, dt, opto, bio, motrak] =
                       {'Timestamp', 'MagX', 'MagY', 'MagZ'});
 
         % unpack raw sensor data
-        [int, mic, ana_acc] = process_mini40(int);%, zeros(1,6), eye(6,6));
+        [int, mic, ana_acc] = process_mini40(accref, int);%, zeros(1,6), eye(6,6));
         dig_acc = unfifo(acc);
         dig_gyro = unfifo(gyro);
         

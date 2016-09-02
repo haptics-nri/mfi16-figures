@@ -97,11 +97,13 @@ function vectors = romano_features_post(cells, nbins, binmode, alpha, stmode)
                 V_hist = zeros(1,nbins);
                 %alpha = 25;
                 if isempty(f)
+                    fprintf('regenerating f (length(V_freq) = %d)\n', length(V_freq));
                     f = linspace(0, 1500, length(V_freq));
                 end
                 for i=1:nbins
                     b = i*1500/nbins;
-                    w = exp(-(f - b).^2 / (2*alpha*b)^2);
+                    w = exp(-(f - b).^2 / (2*(alpha*b)^2));
+                    w = w/sum(w);
                     V_hist(i) = V_freq' * w';
                     %keyboard
                 end

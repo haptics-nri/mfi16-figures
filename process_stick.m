@@ -52,6 +52,12 @@ function [v, int, vbody, vend, vint, vbodyint, vendint, accint, accworld, intbod
         Nr = min([10 size(int,1)-spikes(i)]);
         int(spikes(i)-Nl:spikes(i)+Nr,1) = int(spikes(i)-Nl) + ((int(spikes(i)+Nr) - int(spikes(i)-Nl)) * linspace(0,1,Nl+Nr+1));
     end
+    
+    % smooth Vicon angles
+    if ~is_bluefox
+        fprintf('\tsmoothing vicon angles\n');
+        v(:,5:7) = filtfilt(.4, [1 .4-1], v(:,5:7));
+    end
 
     % transform Vicon into body frame and end-effector frame
     fprintf('\ttransforming pose\n');

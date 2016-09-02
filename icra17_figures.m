@@ -201,7 +201,7 @@ for m = 1:length(materials)
     
     fprintf('Romano features for %s\n', materials{m});
     %%
-    new_feats = romano_features('pre', ep.biws, ep.bvei, ep.bai, mass, 0.05, [20 3]);
+    new_feats = romano_features('pre', ep.iws, ep.vei, ep.ai, mass, 0.05, [20 3]);
                                                                  % FIXME reexamine these thresholds
     %%
     features = [features
@@ -219,7 +219,7 @@ test_features  = features(split_idx==2, :);
 %%
 % crossval
 
-cv = cvpartition(cell2mat(train_features(:,1)), 'KFold', 5);
+cv = cvpartition(cell2mat(train_features(:,1)), 'KFold', 3);
 oc_confusion = cell(1, cv.NumTestSets);
 mc_confusion = cell(1, cv.NumTestSets);
 oc_answers = cell(1, cv.NumTestSets);

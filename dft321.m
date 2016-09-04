@@ -7,9 +7,9 @@ function [out, freq] = dft321(in, filt)
     b = [1 .02-1];
 
     if nargin > 1 && filt
-        A = fft(filtfilt(b, a, in), 3000);
+        A = fft(filtfilt(b, a, in));
     else
-        A = fft(bsxfun(@minus, in, mean(in)), 3000);
+        A = fft(bsxfun(@minus, in, mean(in)));
     end
     A_s = sqrt(sum(A .* conj(A), 2));
     theta = angle(sum(A,2));

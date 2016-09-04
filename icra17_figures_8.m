@@ -2,7 +2,7 @@
 % setup for learning
 
 % dataset parameters
-date = '20160815';
+date = '20160904';
 flowtype = 'stickcam';
 
 % end-effector mass comes from calibration above

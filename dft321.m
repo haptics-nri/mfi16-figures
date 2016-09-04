@@ -16,6 +16,6 @@ function [out, freq] = dft321(in, filt)
     
     freq = A_s .* exp(1j * theta);
     out = real(ifft(freq, size(in,1)));
-    freq = abs(freq);
+    freq = abs(freq(ceil(length(freq)/2):end));
 
 end

@@ -2,7 +2,7 @@
 % setup for learning
 
 % dataset parameters
-date = '20160904';
+date = '20160906';
 flowtype = 'stickcam';
 
 % end-effector mass comes from calibration above
@@ -15,7 +15,7 @@ end
 
 materials = data.keys;
 
-for m = 1:length(materials)
+if false
     icra17_figures_11
 end
 

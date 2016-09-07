@@ -66,7 +66,8 @@ function [v, int, dig_acc, dig_gyro, mic, ana_acc, mag, dt, opto, bio, motrak] =
         
         % load april tag data from bluefox (if present)
         ts_rgb = csvload([prefix 'bluefox/bluefox_times.csv'], {'UnixTimestamp'});
-        if ~isempty(ts_rgb)
+        motrak = [];
+        if false && ~isempty(ts_rgb)
             % if there's april tag data, do motion tracking on it
 
             [nums, ids, centers, p1s, p2s, p3s, p4s] = load_april([prefix, 'bluefox/', 'april.csv']);

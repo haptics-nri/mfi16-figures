@@ -73,7 +73,7 @@ function cells = romano_features_pre(force, pose, vibe, mass, dur, thresh, start
 end
    
 function vectors = romano_features_post(cells, nbins, binmode, alpha, stmode)
-    persistent f;
+    %persistent f;
 
     % 3. process each chunk
     
@@ -96,10 +96,10 @@ function vectors = romano_features_post(cells, nbins, binmode, alpha, stmode)
             case 'perceptual'
                 V_hist = zeros(1,nbins);
                 %alpha = 25;
-                if isempty(f)
-                    fprintf('regenerating f (length(V_freq) = %d)\n', length(V_freq));
+                %if isempty(f)
+                    %fprintf('regenerating f (length(V_freq) = %d)\n', length(V_freq));
                     f = linspace(0, 1500, length(V_freq));
-                end
+                %end
                 for i=1:nbins
                     b = i*1500/nbins;
                     w = exp(-(f - b).^2 / (2*(alpha*b)^2));

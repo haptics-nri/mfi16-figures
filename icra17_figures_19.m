@@ -1,4 +1,4 @@
 % part 19 of /Users/alex/Documents/research/proton/code/calibration/motion/icra17_figures.m
    %%
-    features = [features
-                num2cell(repmat(m, size(new_feats,1), 1)) new_feats];
+    new_feats = romano_features('pre', ep.iws, ep.vei, ep.ai, mass, 0.05, [20 3]);
+                                                                 % FIXME reexamine these thresholds

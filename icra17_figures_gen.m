@@ -12,14 +12,14 @@ icra17_figures_7
 %% setup for learning
 icra17_figures_8
 %% process with vicon
-icra17_figures_12
+icra17_figures_13
 %% process with bluefox
-icra17_figures_14
+icra17_figures_15
 %% SVM stuff (following Romano & KJK 2014 + Strese & Schuwerk & Steinbach 2015)
-icra17_figures_16
-%%
-icra17_figures_20
+icra17_figures_17
 %%
 icra17_figures_21
 %%
-icra17_figures_26
+icra17_figures_22
+%%
+icra17_figures_27

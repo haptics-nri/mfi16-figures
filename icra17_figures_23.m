@@ -1,6 +1,5 @@
 % part 23 of /Users/alex/Documents/research/proton/code/calibration/motion/icra17_figures.m
-        if gs_idx(i,j) == gs_limits(j)
-            icra17_figures_24
-        else
-            icra17_figures_25
-        end
+    gs_idx(i,:) = gs_idx(i-1,:);
+    for j=size(gs_idx,2):-1:1
+        icra17_figures_24
+    end

@@ -6,7 +6,8 @@
 addpath(genpath('RANSAC-Toolbox'))
 addpath('libsvm/matlab')
 
-DATADIR = '/Volumes/shared/Projects/Proton Pack/Data';
+%DATADIR = '/Volumes/shared/Projects/Proton Pack/Data';
+DATADIR = '../../nri/data';
 
 %% sphere calibration (see go_sphere_again.m)
 
@@ -132,7 +133,7 @@ H_bal2imu(1,4) = S.x;
 %% setup for learning
 
 % dataset parameters
-date = '20160815';
+date = '20160906';
 flowtype = 'stickcam';
 
 % end-effector mass comes from calibration above
@@ -156,12 +157,14 @@ end
 
 materials = data.keys;
 
-for m = 1:length(materials)
-    % replace NUC timestamps with Teensy deltas
-    ep = data(materials{m});
-    ep.nuc_t = ep.int(:,1);
-    ep.int(:,1) = ep.int(1,1) + cumsum(bitand(ep.dt, 65535))/1e6;
-    data(materials{m}) = ep;
+if false
+    for m = 1:length(materials)
+        % replace NUC timestamps with Teensy deltas
+        ep = data(materials{m});
+        ep.nuc_t = ep.int(:,1);
+        ep.int(:,1) = ep.int(1,1) + cumsum(bitand(ep.dt, 65535))/1e6;
+        data(materials{m}) = ep;
+    end
 end
 
 %% process with vicon

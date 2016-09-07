@@ -229,11 +229,11 @@ oc_answers = cell(1, cv.NumTestSets);
 mc_answers = cell(1, cv.NumTestSets);
 %%
 % hyperparameters
-nbins = 1:2:10; % 20
+nbins = 10:10:60; % 20
 binmode = {'perceptual'}; % perceptual
 alpha = 0.1:0.05:0.5; % 25
 nu = .05:0.05:0.3; % .6
-gamma = 1:2:20; % 200
+gamma = 10:20:100; % 200
 stmode = true; % false
 
 gs_limits = [length(nbins) length(binmode) length(alpha) length(nu) length(gamma) length(stmode)];

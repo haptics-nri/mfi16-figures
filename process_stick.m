@@ -114,5 +114,6 @@ function [v, int, vbody, vend, vint, vbodyint, vendint, accint, accworld, intbod
         intworldsub(i,2:4) = intworld(i,2:4) - fg';
         intworldsub(i,5:7) = intworld(i,5:7) - cross(com, fg)'; % FIXME this needs to be done in the body frame
     end
+    intworldsub(:,2:4) = filtfilt(.04, [1 .04-1], intworldsub(:,2:4));
     
 end

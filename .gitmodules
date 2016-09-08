@@ -1,0 +1,3 @@
+[submodule "cellsplit"]
+	path = cellsplit
+	url = git@github.com:durka/cellsplit

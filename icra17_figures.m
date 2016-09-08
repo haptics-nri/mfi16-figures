@@ -55,7 +55,7 @@ int = csvload([prefix 'teensy.ft.csv'], ...
               [{'Timestamp'}, ...
                arrayfun(@(x) ['FT' num2str(x)], 0:29, 'UniformOutput',false)]);
            
-int = process_mini40(int, zeros(1,6));
+int = process_mini40(100*ones(size(int,1),1), int, zeros(1,6));
 
 a = round(size(int,1)*1/5);
 b = round(size(int,1)*4/5);
@@ -199,15 +199,19 @@ end
 
 % extract features
 features = cell(0, 5); % cols: label, vibration, speed, normal, tangential
+bfeatures = cell(0, 5); % cols: label, vibration, speed, normal, tangential
 for m = 1:length(materials)
     ep = data(materials{m});
     
     fprintf('Romano features for %s\n', materials{m});
     %%
-    new_feats = romano_features('pre', ep.iws, ep.vei, ep.ai, mass, 0.05, [20 3]);
-                                                                 % FIXME reexamine these thresholds
+    new_feats = romano_features('pre', ep.iws, ep.vei, ep.ai, mass, 0.05, [5 .5], ep.ss);
     %%
     features = [features
+                num2cell(repmat(m, size(new_feats,1), 1)) new_feats];
+            
+    new_feats = romano_features('pre', ep.biws, ep.bvei, ep.bai, mass, 0.05, [5 .5], ep.bss);
+    bfeatures = [bfeatures
                 num2cell(repmat(m, size(new_feats,1), 1)) new_feats];
 end
 
@@ -215,9 +219,17 @@ end
 
 % 4/5 train, 1/5 test
 split_idx = randsample(1:2, size(features,1), true, [4/5 1/5]);
+bsplit_idx = randsample(1:2, size(bfeatures,1), true, [4/5 1/5]);
+
+%% vicon features
 
 train_features = features(split_idx==1, :);
 test_features  = features(split_idx==2, :);
+
+%% bluefox features
+
+train_features = bfeatures(bsplit_idx==1, :);
+test_features  = bfeatures(bsplit_idx==2, :);
 
 %%
 % crossval
@@ -229,9 +241,9 @@ oc_answers = cell(1, cv.NumTestSets);
 mc_answers = cell(1, cv.NumTestSets);
 %%
 % hyperparameters
-nbins = 10:10:60; % 20
+nbins = 20:10:60; % 20
 binmode = {'perceptual'}; % perceptual
-alpha = 0.1:0.05:0.5; % 25
+alpha = 0.1:0.05:0.4; % 25
 nu = .05:0.05:0.3; % .6
 gamma = 10:20:100; % 200
 stmode = true; % false
@@ -277,7 +289,7 @@ for gsi=1:size(gs_idx,1)
         val_vectors  (:,2:end) = bsxfun(@minus, ...
                                         val_vectors  (:,2:end), ...
                                         trainmean);
-        trainrange = max(train_vectors(:,2:end)) - min(train_vectors(:,2:end));
+        trainrange = range(train_vectors(:,2:end));
         train_vectors(:,2:end) = bsxfun(@rdivide, ...
                                         train_vectors(:,2:end), ...
                                         trainrange);
@@ -342,3 +354,203 @@ for gsi=1:size(gs_idx,1)
     gs_acc(gsi) = mean(cv_acc);
     fprintf('\tGS #%d/%d: mean acc %g%%, iter %g s / elapsed %g s\n', gsi, size(gs_idx,1), 100*gs_acc(gsi), toc(iter), toc(elapsed));
 end
+
+%% test on test set (first run GS/CV to completion)
+
+[~, gsi] = max(gs_acc);
+gs_nbins = nbins(gs_idx(gsi,1));
+gs_binmode = binmode{gs_idx(gsi,2)};
+gs_alpha = alpha(gs_idx(gsi,3));
+gs_nu = nu(gs_idx(gsi,4));
+gs_gamma = gamma(gs_idx(gsi,5));
+gs_stmode = stmode(gs_idx(gsi,6));
+%%
+train_vectors = [cell2mat(train_features(:,1)) ...
+                          romano_features('post', train_features(:,2:end), gs_nbins, gs_binmode, gs_alpha, gs_stmode)];
+test_vectors  = [cell2mat(test_features(:,1)) ...
+                          romano_features('post', test_features (:,2:end), gs_nbins, gs_binmode, gs_alpha, gs_stmode)];
+trainmean = mean(train_vectors(:,2:end));
+train_vectors(:,2:end) = bsxfun(@minus, ...
+                                train_vectors(:,2:end), ...
+                                trainmean);
+test_vectors (:,2:end) = bsxfun(@minus, ...
+                                test_vectors (:,2:end), ...
+                                trainmean);
+trainrange = range(train_vectors(:,2:end));
+train_vectors(:,2:end) = bsxfun(@rdivide, ...
+                                train_vectors(:,2:end), ...
+                                trainrange);
+test_vectors (:,2:end) = bsxfun(@rdivide, ...
+                                test_vectors (:,2:end), ...
+                                trainrange);
+mc_train_args = [sprintf('-m 1000 -s 1 -t 2 -n %g -g %g', gs_nu, gs_gamma) common_args];
+final_model = svmtrain(train_vectors(:,1), train_vectors(:,2:end), mc_train_args);
+mc_test_answers = svmpredict(zeros(size(test_vectors,1),1), test_vectors(:,2:end), final_model, test_args);
+mc_test_confusion = zeros(length(materials));
+for i=1:length(materials)
+    for j=1:length(materials)
+        mc_test_confusion(i,j) = nnz(mc_test_answers(test_vectors(:,1)==i) == j);
+    end
+end
+fprintf('Test set accuracy: %g\n', sum(diag(mc_test_confusion))/sum(sum(mc_test_confusion)));
+
+
+%% feature vectors -- first set gsi to optimal and run the grid search iter
+fv1 = figure;
+%fv2 = figure;
+f = romano_features('post', train_features(:,2:end), gs_nbins, gs_binmode, gs_alpha, gs_stmode);
+for i=1:5
+    idx = cell2mat(train_features(:,1))==i;
+    g = f(idx,:);
+    g = bsxfun(@minus, g, mean(g));
+    g = bsxfun(@rdivide, g, range(g));
+    g = [g mean(g(:,[end-5 end-3 end-1]), 2)];
+    g = sortrows(g, size(g,2));
+    g = g(:,1:end-1);
+    f(idx,:) = g;
+end
+allmin = min(min(f));
+allmax = max(max(f));
+for i=1:5
+    figure(fv1);
+    subplot(5,1,i);
+    idx = cell2mat(train_features(:,1))==i;
+    g = f(idx,:);
+    imagesc(g);%, [allmin allmax]);
+    set(gca, 'xtick', []);
+    set(gca, 'ytick', []);
+    box off; axis off;
+    text(0.3, size(g,1)/2, ...
+         material_names{i}, ...
+         'FontSize', 14, ...
+         'HorizontalAlignment', 'right', ...
+         'Interpreter', 'tex');
+     
+    %figure(fv2);
+    %subplot(1,6,i);
+    %cor = corrcoef(g(:,1:end-6));
+    %imagesc(cor);
+end
+figure(fv1);
+a = subplot(5,1,5);
+axis on;
+a.XRuler.Axle.Visible = 'off';
+a.YRuler.Axle.Visible = 'off';
+%a.XTick = 1:10;
+labels = {};
+for i=1:gs_nbins
+    labels{end+1} = sprintf('Freq. bin %d', i);
+end
+things = {'F_N', 'V', 'F_T'};
+for thing=1:length(things)
+    labels{end+1} = sprintf('Mean %s', things{thing});
+    if gs_stmode
+        labels{end+1} = sprintf('Std %s', things{thing});
+    end
+end
+%a.XTickLabels = labels;
+%a.XTickLabelRotation = 70;
+%a.TickLength = [0 0];
+for i=1:length(labels)
+    text(i, size(g,1)*1.2, labels{i}, 'Rotation',-60, 'FontSize',14);
+end
+colormap jet;
+axes('Position', [0.05 0.05 0.95 0.9], 'Visible', 'off');
+set(colorbar('ticks',[]), 'edgecolor','none');
+text(1.08, 1, '1', 'fontsize',14);
+text(1.08, 0, '0', 'fontsize',14);
+print -dpdf mfi16_feature_vectors.pdf;
+%figure(fv2);
+%subplot(1,6,6);
+%colormap jet;
+%colorbar;
+
+%% confusion matrices -- first set gsi to optimal and run the test set
+figure;
+imagesc(bsxfun(@rdivide, mc_test_confusion, sum(mc_test_confusion, 1)), [0 1]);
+colormap(flipud(gray));
+ax = gca;
+ax.XTick = [1 2 3 4 5];
+ax.YTick = [1 2 3 4 5];
+ax.XTickLabel = {'ABS', 'paper plate', 'folder', 'MDF', 'canvas'};
+ax.YTickLabel = {'ABS', 'paper plate', 'folder', 'MDF', 'canvas'};
+ax.FontSize = 14;
+xlabel('Detected material');
+ylabel('Actual material');
+ax.XLabel.Position = ax.XLabel.Position + [0 0.1 0];
+for i=1:length(materials)
+    for j=1:length(materials)
+        if i == j
+            c = 'white';
+        else
+            c = 'black';
+        end
+        text(j, i, sprintf('%.3f', mc_test_confusion(i,j)/sum(mc_test_confusion(:,j))), ...
+             'FontSize',14, 'Color',c, 'horizontalalignment','center');
+    end
+end
+print -dpdf mfi16_confusion_recall.pdf;
+figure;
+imagesc(bsxfun(@rdivide, mc_test_confusion, sum(mc_test_confusion, 2)), [0 1]);
+colormap(flipud(gray));
+ax = gca;
+ax.XTick = [1 2 3 4 5];
+ax.YTick = [1 2 3 4 5];
+ax.XTickLabel = {'ABS', 'paper plate', 'folder', 'MDF', 'canvas'};
+ax.YTickLabel = {'ABS', 'paper plate', 'folder', 'MDF', 'canvas'};
+ax.FontSize = 14;
+xlabel('Detected material');
+ylabel('Actual material');
+ax.XLabel.Position = ax.XLabel.Position + [0 0.1 0];
+for i=1:length(materials)
+    for j=1:length(materials)
+        if i == j
+            c = 'white';
+        else
+            c = 'black';
+        end
+        text(j, i, sprintf('%.3f', mc_test_confusion(i,j)/sum(mc_test_confusion(i,:))), ...
+             'FontSize',14, 'Color',c, 'HorizontalAlignment','center');
+    end
+end
+print -dpdf mfi16_confusion_precision.pdf;
+
+fprintf('\n');
+fprintf('Surface & Precision & Recall & $F_1$ score\n');
+for i=1:length(materials)
+    fprintf('%s  &  ', material_names{i});
+    others = setdiff(1:5, i);
+    tp = mc_test_confusion(i,i);
+    fp = sum(mc_test_confusion(others,i));
+    tn = sum(sum(mc_test_confusion(others,others)));
+    fn = sum(mc_test_confusion(i,others));
+    prec = tp/(tp+fp);
+    rec = tp/(tp+fn);
+    f1 = 2*prec*rec/(prec+rec);
+    fprintf('%.3f  &  %.3f  &  %.3f', prec, rec, f1);
+    fprintf(' \\\\ \n');
+end
+
+%% run both grid searches (cellsplit expand first)
+
+% vicon
+icra17_figures_21;
+icra17_figures_23;
+icra17_figures_24;
+icra17_figures_29;
+vgs_acc = gs_acc;
+
+% bluefox
+icra17_figures_22;
+icra17_figures_23;
+icra17_figures_24;
+icra17_figures_29;
+bgs_acc = gs_acc;
+
+%% GS sensitivity analysis
+
+gs_plots(vgs_acc, gs_idx(:,[1 3 4 5]), {'nbins', nbins; 'alpha', alpha; 'nu', nu; 'gamma', gamma});
+suplabel('Vicon', 't');
+
+gs_plots(bgs_acc, gs_idx(:,[1 3 4 5]), {'nbins', nbins; 'alpha', alpha; 'nu', nu; 'gamma', gamma});
+suplabel('Bluefox', 't');

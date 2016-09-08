@@ -1,5 +1,9 @@
 % part 23 of /Users/alex/Documents/research/proton/code/calibration/motion/icra17_figures.m
-    gs_idx(i,:) = gs_idx(i-1,:);
-    for j=size(gs_idx,2):-1:1
-        icra17_figures_24
-    end
+%
+% crossval
+
+cv = cvpartition(cell2mat(train_features(:,1)), 'KFold', 3);
+oc_confusion = cell(1, cv.NumTestSets);
+mc_confusion = cell(1, cv.NumTestSets);
+oc_answers = cell(1, cv.NumTestSets);
+mc_answers = cell(1, cv.NumTestSets);

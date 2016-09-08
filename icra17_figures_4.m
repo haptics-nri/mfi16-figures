@@ -20,7 +20,7 @@ int = csvload([prefix 'teensy.ft.csv'], ...
               [{'Timestamp'}, ...
                arrayfun(@(x) ['FT' num2str(x)], 0:29, 'UniformOutput',false)]);
            
-int = process_mini40(int, zeros(1,6));
+int = process_mini40(100*ones(size(int,1),1), int, zeros(1,6));
 
 a = round(size(int,1)*1/5);
 b = round(size(int,1)*4/5);

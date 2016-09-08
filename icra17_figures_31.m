@@ -1,17 +1,10 @@
 % part 31 of /Users/alex/Documents/research/proton/code/calibration/motion/icra17_figures.m
-            % evaluate by comparing all OCSVMs and the MCSVM
-            %oc_confusion{cvi} = zeros(length(materials));
-            mc_confusion{cvi} = zeros(length(materials));
-            %prob = zeros(size(val_vectors,1),length(materials));
-            %for mi=1:length(materials)
-            %    prob(:,mi) = rabaoui_dissim(models{mi}, val_vectors(:,2:end));
-            %end
-            %[~, oc_answers{cvi}] = min(prob, [], 2);
-            mc_answers{cvi} = svmpredict(zeros(size(val_vectors,1),1), val_vectors(:,2:end), models{end}, '-q');
-
-            for i=1:length(materials)
-                icra17_figures_32
-            end
-
-            cv_acc(cvi) = sum(diag(mc_confusion{cvi}))/sum(sum(mc_confusion{cvi}));
-            fprintf('\tFold %d: MC %g%%\n', cvi, 100*cv_acc(cvi));
+   %%
+    iter = tic;
+    fprintf('Grid search with nbins=%d, binmode=%s, alpha=%g, nu=%g, gamma=%g, stmode=%d\n', gs_nbins, gs_binmode, gs_alpha, gs_nu, gs_gamma, gs_stmode);
+    cv_acc = zeros(cv.NumTestSets,1);
+    for cvi = 1:cv.NumTestSets
+        icra17_figures_32
+    end
+    gs_acc(gsi) = mean(cv_acc);
+    fprintf('\tGS #%d/%d: mean acc %g%%, iter %g s / elapsed %g s\n', gsi, size(gs_idx,1), 100*gs_acc(gsi), toc(iter), toc(elapsed));

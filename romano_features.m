@@ -90,9 +90,7 @@ function vectors = romano_features_post(cells, nbins, binmode, alpha, stmode)
         
         switch binmode
             case 'naive'
-                highfreq = 1500;
-                centers = linspace(highfreq/nbins, highfreq, nbins+1);
-                V_hist = histcounts(V_freq, centers+(mean(diff(centers))/2));
+                error('unimplemented');
             case 'perceptual'
                 V_hist = zeros(1,nbins);
                 %alpha = 25;

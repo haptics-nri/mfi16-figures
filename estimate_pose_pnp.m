@@ -46,12 +46,8 @@ function [pos, q] = estimate_pose_pnp(sensor)
     [R,C] = ind2sub([8,10],UniqueIDs);
     IDs = sensor.id +1;
     
-    extraIDs = 81:86; %% The tags which are not supposed to be used and are on the frame
-    [IDs,idx_useful] = setdiff(IDs,extraIDs);
-    
-    if isempty(extraIDs)
-        idx_useful = 1:length(IDs);
-    end
+    idx_useful = find(IDs <= 80);
+    IDs = IDs(idx_useful);
     
     if ~isempty(IDs)
         

@@ -17,9 +17,25 @@ icra17_figures_13
 icra17_figures_15
 %% SVM stuff (following Romano & KJK 2014 + Strese & Schuwerk & Steinbach 2015)
 icra17_figures_17
-%%
+%% vicon features
 icra17_figures_21
-%%
+%% bluefox features
 icra17_figures_22
 %%
-icra17_figures_27
+icra17_figures_23
+%%
+icra17_figures_24
+%%
+icra17_figures_29
+%% test on test set (first run GS/CV to completion)
+icra17_figures_37
+%%
+icra17_figures_38
+%% feature vectors -- first set gsi to optimal and run the grid search iter
+icra17_figures_41
+%% confusion matrices -- first set gsi to optimal and run the test set
+icra17_figures_48
+%% run both grid searches (cellsplit expand first)
+icra17_figures_58
+%% GS sensitivity analysis
+icra17_figures_59

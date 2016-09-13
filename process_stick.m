@@ -88,7 +88,7 @@ function [v, int, vbody, vend, vint, vbodyint, vendint, accint, accworld, intbod
     if isempty(acc)
         accint = [];
     else
-        accint = [int(:,1) interp1(acc(:,1),   [mean(-acc(:,[2 5]), 2) -acc(:,7) acc(:,4)], int(:,1))];
+        accint = [int(:,1) interp1(acc(:,1), acc(:,[2 3 6]), int(:,1))];
     end
     % transform Mini40 and IMU into body frame and world frame
     fprintf('\ttransforming force\n');

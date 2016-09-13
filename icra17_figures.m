@@ -143,10 +143,13 @@ episodes = dir([DATADIR filesep date filesep flowtype]);
 for ep = 1:length(episodes)
     if episodes(ep).name(1) == '.'
         continue;
+    elseif str2num(episodes(ep).name) < 7 % change this to select end-effector
+        continue;
     end
     
     flow = parse_flow([DATADIR filesep date filesep flowtype filesep episodes(ep).name filesep 'stickcam.flow']);
     material = flow.answers('surface name').text;
+    fprintf('Loading %s (%s)...\n', episodes(ep).name, material);
     [v, int, da,dg,mi, acc, ma, dt, o,b, motrak] = ...
         load_stick([DATADIR filesep date filesep flowtype filesep episodes(ep).name filesep]);
     data(material) = struct('v',v, 'int',int, 'acc',acc, ...
@@ -205,12 +208,12 @@ for m = 1:length(materials)
     
     fprintf('Romano features for %s\n', materials{m});
     %%
-    new_feats = romano_features('pre', ep.iws, ep.vei, ep.ai, mass, 0.05, [5 .5], ep.ss);
+    new_feats = romano_features('pre', ep.iws, ep.vei, ep.ai, mass, 150, [5 .5], ep.ss);
     %%
     features = [features
                 num2cell(repmat(m, size(new_feats,1), 1)) new_feats];
             
-    new_feats = romano_features('pre', ep.biws, ep.bvei, ep.bai, mass, 0.05, [5 .5], ep.bss);
+    new_feats = romano_features('pre', ep.biws, ep.bvei, ep.bai, mass, 150, [5 .5], ep.bss);
     bfeatures = [bfeatures
                 num2cell(repmat(m, size(new_feats,1), 1)) new_feats];
 end
@@ -399,29 +402,27 @@ fprintf('Test set accuracy: %g\n', sum(diag(mc_test_confusion))/sum(sum(mc_test_
 fv1 = figure;
 %fv2 = figure;
 f = romano_features('post', train_features(:,2:end), gs_nbins, gs_binmode, gs_alpha, gs_stmode);
+f = bsxfun(@minus, f, mean(f));
+f = bsxfun(@rdivide, f, range(f));
+allmin = min(min(f));
+allmax = max(max(f));
+names = {'ABS', 'glitter paper', 'silk', 'vinyl', 'wood'};
 for i=1:5
     idx = cell2mat(train_features(:,1))==i;
     g = f(idx,:);
-    g = bsxfun(@minus, g, mean(g));
-    g = bsxfun(@rdivide, g, range(g));
     g = [g mean(g(:,[end-5 end-3 end-1]), 2)];
     g = sortrows(g, size(g,2));
     g = g(:,1:end-1);
-    f(idx,:) = g;
-end
-allmin = min(min(f));
-allmax = max(max(f));
-for i=1:5
+    g(:, (end-3):end) = g(:,[end-1 end end-3 end-2]); % swap V and Ft
+
     figure(fv1);
     subplot(5,1,i);
-    idx = cell2mat(train_features(:,1))==i;
-    g = f(idx,:);
-    imagesc(g);%, [allmin allmax]);
+    imagesc(g, [allmin allmax]);
     set(gca, 'xtick', []);
     set(gca, 'ytick', []);
     box off; axis off;
     text(0.3, size(g,1)/2, ...
-         material_names{i}, ...
+         names{i}, ...
          'FontSize', 14, ...
          'HorizontalAlignment', 'right', ...
          'Interpreter', 'tex');
@@ -439,9 +440,9 @@ a.YRuler.Axle.Visible = 'off';
 %a.XTick = 1:10;
 labels = {};
 for i=1:gs_nbins
-    labels{end+1} = sprintf('Freq. bin %d', i);
+    labels{end+1} = sprintf('Bin %d', i);
 end
-things = {'F_N', 'V', 'F_T'};
+things = {'Fn', 'Ft', 'V'};
 for thing=1:length(things)
     labels{end+1} = sprintf('Mean %s', things{thing});
     if gs_stmode
@@ -452,14 +453,14 @@ end
 %a.XTickLabelRotation = 70;
 %a.TickLength = [0 0];
 for i=1:length(labels)
-    text(i, size(g,1)*1.2, labels{i}, 'Rotation',-60, 'FontSize',14);
+    text(i, size(g,1)*1.2, labels{i}, 'Rotation',-90, 'FontSize',14);
 end
 colormap jet;
 axes('Position', [0.05 0.05 0.95 0.9], 'Visible', 'off');
 set(colorbar('ticks',[]), 'edgecolor','none');
 text(1.08, 1, '1', 'fontsize',14);
 text(1.08, 0, '0', 'fontsize',14);
-print -dpdf mfi16_feature_vectors.pdf;
+print -dpdf icra17_feature_vectors.pdf;
 %figure(fv2);
 %subplot(1,6,6);
 %colormap jet;
@@ -467,37 +468,13 @@ print -dpdf mfi16_feature_vectors.pdf;
 
 %% confusion matrices -- first set gsi to optimal and run the test set
 figure;
-imagesc(bsxfun(@rdivide, mc_test_confusion, sum(mc_test_confusion, 1)), [0 1]);
-colormap(flipud(gray));
-ax = gca;
-ax.XTick = [1 2 3 4 5];
-ax.YTick = [1 2 3 4 5];
-ax.XTickLabel = {'ABS', 'paper plate', 'folder', 'MDF', 'canvas'};
-ax.YTickLabel = {'ABS', 'paper plate', 'folder', 'MDF', 'canvas'};
-ax.FontSize = 14;
-xlabel('Detected material');
-ylabel('Actual material');
-ax.XLabel.Position = ax.XLabel.Position + [0 0.1 0];
-for i=1:length(materials)
-    for j=1:length(materials)
-        if i == j
-            c = 'white';
-        else
-            c = 'black';
-        end
-        text(j, i, sprintf('%.3f', mc_test_confusion(i,j)/sum(mc_test_confusion(:,j))), ...
-             'FontSize',14, 'Color',c, 'horizontalalignment','center');
-    end
-end
-print -dpdf mfi16_confusion_recall.pdf;
-figure;
 imagesc(bsxfun(@rdivide, mc_test_confusion, sum(mc_test_confusion, 2)), [0 1]);
 colormap(flipud(gray));
 ax = gca;
 ax.XTick = [1 2 3 4 5];
 ax.YTick = [1 2 3 4 5];
-ax.XTickLabel = {'ABS', 'paper plate', 'folder', 'MDF', 'canvas'};
-ax.YTickLabel = {'ABS', 'paper plate', 'folder', 'MDF', 'canvas'};
+ax.XTickLabel = {'ABS', 'glitter paper', 'silk', 'vinyl', 'wood'};
+ax.YTickLabel = {'ABS', 'glitter paper', 'silk', 'vinyl', 'wood'};
 ax.FontSize = 14;
 xlabel('Detected material');
 ylabel('Actual material');
@@ -513,7 +490,7 @@ for i=1:length(materials)
              'FontSize',14, 'Color',c, 'HorizontalAlignment','center');
     end
 end
-print -dpdf mfi16_confusion_precision.pdf;
+print -dpdf icra17_confusion_precision.pdf;
 
 fprintf('\n');
 fprintf('Surface & Precision & Recall & $F_1$ score\n');
@@ -530,6 +507,26 @@ for i=1:length(materials)
     fprintf('%.3f  &  %.3f  &  %.3f', prec, rec, f1);
     fprintf(' \\\\ \n');
 end
+
+%% accelerometer comparison figure
+
+[v,f,da,dg,~,a,~,~,~,~,m] = load_stick('../../nri/data/20160906/stickcam/6/');
+figure
+plot(a(:,1)-a(1,1), bsxfun(@minus, a(:,2:4), mean(a(:,2:4))))
+subplot(211)
+plot(a(:,1)-a(1,1), bsxfun(@minus, a(:,2:4), mean(a(:,2:4))))
+subplot(212)
+plot(a(:,1)-a(1,1), bsxfun(@minus, a(:,5:7), mean(a(:,5:7))))
+subplot(211)
+axis([9 17 -8 8])
+subplot(212)
+axis([9 17 -8 8])
+xlabel('Time (s)')
+ylabel('Internal accelerometer signal (m/s^2)')
+subplot(211)
+xlabel('Time (s)')
+ylabel('External accelerometer signal (m/s^2)')
+print -dpdf icra17_accel_compare.pdf
 
 %% run both grid searches (cellsplit expand first)
 

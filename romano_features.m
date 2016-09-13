@@ -53,13 +53,12 @@ function cells = romano_features_pre(force, pose, vibe, mass, dur, thresh, start
     idx = start:stop; % between taps
     idx((speed < thresh(1)) | (abs(forcefiltsub(:,3)) < thresh(2))) = []; % speed/force thresholds
     divs = [1 find(diff(idx) > 100) length(idx)]; % divide into continuous-ish segments
-    dt = mean(diff(force(:,1)));
     for d=1:(length(divs)-1)
         t = idx(divs(d));
-        while t+round(dur/dt) <= idx(divs(d+1))
+        while t+floor(dur) <= idx(divs(d+1))
             chunks = [chunks
-                      t-start+1 t+round(dur/dt)-start+1];
-            t = t+round(dur/dt)+1;
+                      t-start+1 t+floor(dur)-start+1];
+            t = t+floor(dur)+1;
         end
     end
     
@@ -90,7 +89,22 @@ function vectors = romano_features_post(cells, nbins, binmode, alpha, stmode)
         
         switch binmode
             case 'naive'
-                error('unimplemented');
+                V_hist = zeros(1,nbins);
+                N = round(length(V_freq)/nbins);
+                for i=1:nbins
+                    start = (i-1)*N+1;
+                    stop = i*N;
+                    if stop > length(V_freq)
+                        if i == nbins
+                            stop = length(V_freq);
+                            V_hist(i) = sum(V_freq(start:stop)/(stop - start + 1));
+                        else
+                            V_hist(i) = 0;
+                        end
+                    else
+                        V_hist(i) = sum(V_freq(start:stop)/(stop - start + 1));
+                    end
+                end
             case 'perceptual'
                 V_hist = zeros(1,nbins);
                 %alpha = 25;

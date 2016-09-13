@@ -1,9 +1,6 @@
 % part 23 of /Users/alex/Documents/research/proton/code/calibration/motion/icra17_figures.m
-%
-% crossval
+% bluefox features
 
-cv = cvpartition(cell2mat(train_features(:,1)), 'KFold', 3);
-oc_confusion = cell(1, cv.NumTestSets);
-mc_confusion = cell(1, cv.NumTestSets);
-oc_answers = cell(1, cv.NumTestSets);
-mc_answers = cell(1, cv.NumTestSets);
+train_features = bfeatures(bsplit_idx==1, :);
+test_features  = bfeatures(bsplit_idx==2, :);
+

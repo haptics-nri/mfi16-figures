@@ -1,6 +1,6 @@
 % part 22 of /Users/alex/Documents/research/proton/code/calibration/motion/icra17_figures.m
-% bluefox features
+% vicon features
 
-train_features = bfeatures(bsplit_idx==1, :);
-test_features  = bfeatures(bsplit_idx==2, :);
+train_features = features(split_idx==1, :);
+test_features  = features(split_idx==2, :);
 

@@ -1,8 +1,17 @@
 % part 59 of /Users/alex/Documents/research/proton/code/calibration/motion/icra17_figures.m
-% GS sensitivity analysis
+% run both grid searches (cellsplit expand first)
 
-gs_plots(vgs_acc, gs_idx(:,[1 3 4 5]), {'nbins', nbins; 'alpha', alpha; 'nu', nu; 'gamma', gamma});
-suplabel('Vicon', 't');
+% vicon
+icra17_figures_21;
+icra17_figures_23;
+icra17_figures_24;
+icra17_figures_29;
+vgs_acc = gs_acc;
 
-gs_plots(bgs_acc, gs_idx(:,[1 3 4 5]), {'nbins', nbins; 'alpha', alpha; 'nu', nu; 'gamma', gamma});
-suplabel('Bluefox', 't');
+% bluefox
+icra17_figures_22;
+icra17_figures_23;
+icra17_figures_24;
+icra17_figures_29;
+bgs_acc = gs_acc;
+

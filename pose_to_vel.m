@@ -1,4 +1,7 @@
-function [vel, acc, posefilt, forcefilt, anglefilt] = pose_to_vel(pose, force)
+function [vel, acc, posefilt, forcefilt, anglefilt] = pose_to_vel(pose, force, endeffradius)
+
+    pose(isnan(pose)) = 0;
+    force(isnan(force)) = 0;
 
     % unity-gain first-order low-pass filter
     a = .02;
@@ -13,6 +16,11 @@ function [vel, acc, posefilt, forcefilt, anglefilt] = pose_to_vel(pose, force)
     dx = diff(posefilt);
     dt = diff(pose(:,1));
     vel = filtfilt(a, b, bsxfun(@rdivide, dx, dt));
+    if nargin == 3
+        for i=1:size(vel,1)
+            vel(i,:) = vel(i,:) + real(logm(xfconv(pose(i+1,5:7)) \ xfconv(pose(i,5:7)))*3000 * [0 0 -endeffradius]')';
+        end
+    end
     vel = [vel; vel(end,:)]; % duplicate the last point to make it the same length
     acc = filtfilt(a, b, bsxfun(@rdivide, diff(vel), dt));
     acc = [acc; acc(end,:)];

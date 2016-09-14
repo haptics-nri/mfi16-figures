@@ -510,13 +510,14 @@ end
 
 %% accelerometer comparison figure
 
-[v,f,da,dg,~,a,~,~,~,~,m] = load_stick('../../nri/data/20160906/stickcam/6/');
+[v,f,da,dg,~,a,~,dt,~,~,m] = load_stick('../../nri/data/20160906/stickcam/6/');
+t = cumsum(bitand(dt, 65535))/1e6;
 figure
-plot(a(:,1)-a(1,1), bsxfun(@minus, a(:,2:4), mean(a(:,2:4))))
+plot(t, bsxfun(@minus, a(:,2:4), mean(a(:,2:4))))
 subplot(211)
-plot(a(:,1)-a(1,1), bsxfun(@minus, a(:,2:4), mean(a(:,2:4))))
+plot(t, bsxfun(@minus, a(:,2:4), mean(a(:,2:4))))
 subplot(212)
-plot(a(:,1)-a(1,1), bsxfun(@minus, a(:,5:7), mean(a(:,5:7))))
+plot(t, bsxfun(@minus, a(:,5:7), mean(a(:,5:7))))
 subplot(211)
 axis([9 17 -8 8])
 subplot(212)
@@ -526,7 +527,67 @@ ylabel('Internal accelerometer signal (m/s^2)')
 subplot(211)
 xlabel('Time (s)')
 ylabel('External accelerometer signal (m/s^2)')
-print -dpdf icra17_accel_compare.pdf
+print -dpdf -r0 icra17_accel_compare.pdf
+
+%% feature vector figure
+
+%clf;%figure;
+
+% sample data
+d1 = data38('abs');
+d1.bvel = pose_to_vel(d1.bvei, d1.biws);
+d1.a = 47200;
+d1.b = d1.a+1500;
+d{1} = d1;
+d2 = data38('vinyl');
+d2.bvel = pose_to_vel(d2.bvei, d2.biws);
+d2.a = 48180;
+d2.b = d2.a+1500;
+d{2} = d2;
+
+for i=1:2
+    pre = romano_features('pre', d{i}.biws, d{i}.bvei, d{i}.bai, mass, 150, [5 .5], [d{i}.a d{i}.b+100]);
+    post = romano_features('post', pre, 15, 'naive', 0, 1);
+    post(:, (end-3):end) = post(:,[end-1 end end-3 end-2]); % swap V and Ft
+    
+    figure;%subplot(3,2, 1 + (i-1));
+    plot(d{i}.biws(d{i}.a:d{i}.b,1)-d{i}.biws(1,1), [sqrt(sum(d{i}.biws(d{i}.a:d{i}.b,2:3).^2,2)) d{i}.biws(d{i}.a:d{i}.b,4) dft321(d{i}.bai(d{i}.a:d{i}.b,2:4))*10 sqrt(sum(d{i}.bvel(d{i}.a:d{i}.b,:).^2,2))/10]);
+    legend('Tangential force (N)', 'Normal force (N)', 'Acceleration (cm/s^2)', 'Tip speed (cm/s)');
+    xlabel('Time (s)');
+    print('-dpdf', sprintf('icra17_fv_%d_1.pdf', i));
+    
+    figure;%subplot(3,2, 3 + (i-1));
+    plot(d{i}.biws(d{i}.a:d{i}.b,1)-d{i}.biws(1,1), [sqrt(sum(d{i}.biws(d{i}.a:d{i}.b,2:3).^2,2)) d{i}.biws(d{i}.a:d{i}.b,4) dft321(d{i}.bai(d{i}.a:d{i}.b,2:4))*10 sqrt(sum(d{i}.bvel(d{i}.a:d{i}.b,:).^2,2))/10]);
+    ax = axis;
+    for j=0:150:1500; line(d{i}.biws(d{i}.a+[j j],1)-d{i}.biws(1,1), ax(3:4), 'color','black'); end
+    print('-dpdf', sprintf('icra17_fv_%d_2.pdf', i));
+    
+    figure; sub = axes; %sub = subplot(3,2, 5 + (i-1));
+    m = mean(post);
+    r = range(bsxfun(@minus, post, m));
+    posted = bsxfun(@rdivide, bsxfun(@minus, post, m), r);
+    imagesc(posted);
+    colormap jet;
+    colorbar;
+    box off;
+    sub.XTickLabel = [];
+    ylabel('Feature vectors');
+    sub.XRuler.Axle.Visible = 'off';
+    sub.YRuler.Axle.Visible = 'off';
+    labels = repmat({''}, [1 15]);
+    for j=[1 5 10 15]
+        labels{j} = sprintf('Bin %d', j);
+    end
+    things = {'Fn', 'Ft', 'V'};
+    for thing=1:length(things)
+        labels{end+1} = sprintf('Mean %s', things{thing});
+        labels{end+1} = sprintf('Std %s', things{thing});
+    end
+    for j=1:length(labels)
+        text(j, 11, labels{j}, 'Rotation',-90, 'FontSize',14);
+    end
+    print('-dpdf', sprintf('icra17_fv_%d_3.pdf', i));
+end
 
 %% run both grid searches (cellsplit expand first)
 

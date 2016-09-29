@@ -531,52 +531,109 @@ print -dpdf -r0 icra17_accel_compare.pdf
 
 %% feature vector figure
 
-%clf;%figure;
+dosub = false;
+if dosub
+    clf
+end
 
 % sample data
 d1 = data38('abs');
-d1.bvel = pose_to_vel(d1.bvei, d1.biws);
+d1.vel = pose_to_vel(d1.vei, d1.iws);
 d1.a = 47200;
 d1.b = d1.a+1500;
 d{1} = d1;
 d2 = data38('vinyl');
-d2.bvel = pose_to_vel(d2.bvei, d2.biws);
-d2.a = 48180;
+d2.vel = pose_to_vel(d2.vei, d2.iws);
+d2.a = 55200;
 d2.b = d2.a+1500;
 d{2} = d2;
 
 for i=1:2
-    pre = romano_features('pre', d{i}.biws, d{i}.bvei, d{i}.bai, mass, 150, [5 .5], [d{i}.a d{i}.b+100]);
-    post = romano_features('post', pre, 15, 'naive', 0, 1);
-    post(:, (end-3):end) = post(:,[end-1 end end-3 end-2]); % swap V and Ft
+    d{i}.pre = romano_features('pre', d{i}.iws, d{i}.vei, d{i}.ai, mass, 150, 0, [d{i}.a-1515 d{i}.b+1515]);
+    d{i}.pre = d{i}.pre(11:20,:);
+    d{i}.post = romano_features('post', d{i}.pre, 5, 'naive', 0, 1);
+    d{i}.post(:, (end-3):end) = d{i}.post(:,[end-1 end end-3 end-2]); % swap V and Ft
     
-    figure;%subplot(3,2, 1 + (i-1));
-    plot(d{i}.biws(d{i}.a:d{i}.b,1)-d{i}.biws(1,1), [sqrt(sum(d{i}.biws(d{i}.a:d{i}.b,2:3).^2,2)) d{i}.biws(d{i}.a:d{i}.b,4) dft321(d{i}.bai(d{i}.a:d{i}.b,2:4))*10 sqrt(sum(d{i}.bvel(d{i}.a:d{i}.b,:).^2,2))/10]);
-    legend('Tangential force (N)', 'Normal force (N)', 'Acceleration (cm/s^2)', 'Tip speed (cm/s)');
+    d{i}.m = mean(d{i}.post);
+    d{i}.r = range(bsxfun(@minus, d{i}.post, d{i}.m));
+    d{i}.m(1:5) = mean(d{i}.m(1:5));
+    d{i}.r(1:5) = mean(d{i}.r(1:5))*3;
+    d{i}.m([6 8]) = mean(d{i}.m([6 8]));
+    d{i}.r([6 8]) = mean(d{i}.r([6 8]));
+end
+
+meanm = mean([d{1}.m; d{2}.m]);
+meanr = mean([d{1}.r; d{2}.r]);
+for i=1:2
+    d{i}.posted = bsxfun(@rdivide, bsxfun(@minus, d{i}.post, meanm), meanr);
+    minmin(i) = min(min(d{i}.posted));
+    maxmax(i) = max(max(d{i}.posted));
+end
+minmin = min(minmin);
+maxmax = max(maxmax);
+
+f = figure;
+imagesc([d{1}.posted d{2}.posted]);
+ax = gca;
+clim = ax.CLim;
+close(f);
+
+for i=1:2
+    if dosub
+        subplot(2,2, 1 + (i-1));
+    else
+        figure;
+    end
+    set(gca, 'FontSize',12);
+    hold on;
+    for j=0:150:1500
+        line(d{i}.iws(d{i}.a+[j j],1)-d{i}.iws(1,1), [-15 30], 'color',[.6 .6 .6])
+        if j < 1500
+            text(d{i}.iws(d{i}.a+j+75)-d{i}.iws(1,1), -14, sprintf('%d', j/150+1), 'color',[.6 .6 .6], 'horizontalalignment','center');
+        end
+    end
+    datums = plot(d{i}.iws(d{i}.a:d{i}.b,1)-d{i}.iws(1,1), ...
+         [...
+          d{i}.iws(d{i}.a:d{i}.b,4) ...
+          sqrt(sum(d{i}.iws(d{i}.a:d{i}.b,2:3).^2,2)) ...
+          dft321(d{i}.ai(d{i}.a:d{i}.b,2:4))*10 ...
+          sqrt(sum(d{i}.vel(d{i}.a:d{i}.b,:).^2,2))/10 ...
+         ]);
+    axis([d{i}.iws(d{i}.a,1)-d{i}.iws(1,1) d{i}.iws(d{i}.b,1)-d{i}.iws(1,1) -15 30]);
+    set(gca, 'XTick', round(d{i}.iws(d{i}.a + (225:450:1499)',1) - d{i}.iws(1,1), 2));
+    legend(datums([1 2 4 3]), 'Normal force (N)', 'Tangential force (N)', 'Tip speed (cm/s)', 'Acceleration (cm/s^2)', 'location','northeast');
     xlabel('Time (s)');
-    print('-dpdf', sprintf('icra17_fv_%d_1.pdf', i));
+    box on;
+    if ~dosub
+        print('-dpdf', sprintf('icra17_fv_%d_1.pdf', i));
+    end
     
-    figure;%subplot(3,2, 3 + (i-1));
-    plot(d{i}.biws(d{i}.a:d{i}.b,1)-d{i}.biws(1,1), [sqrt(sum(d{i}.biws(d{i}.a:d{i}.b,2:3).^2,2)) d{i}.biws(d{i}.a:d{i}.b,4) dft321(d{i}.bai(d{i}.a:d{i}.b,2:4))*10 sqrt(sum(d{i}.bvel(d{i}.a:d{i}.b,:).^2,2))/10]);
-    ax = axis;
-    for j=0:150:1500; line(d{i}.biws(d{i}.a+[j j],1)-d{i}.biws(1,1), ax(3:4), 'color','black'); end
-    print('-dpdf', sprintf('icra17_fv_%d_2.pdf', i));
+    if dosub
+        sub = subplot(2,2, 3 + (i-1));
+    else
+        figure;
+        sub = axes;
+    end
     
-    figure; sub = axes; %sub = subplot(3,2, 5 + (i-1));
-    m = mean(post);
-    r = range(bsxfun(@minus, post, m));
-    posted = bsxfun(@rdivide, bsxfun(@minus, post, m), r);
-    imagesc(posted);
+    posted = d{i}.posted;
+    posted = posted';
+    %posted = posted - minmin;
+    %posted = posted / (maxmax - minmin);
+    
+    cla;
+    imagesc(posted, clim);
+    set(gca, 'FontSize',12);
     colormap jet;
-    colorbar;
+    %colorbar;
     box off;
-    sub.XTickLabel = [];
-    ylabel('Feature vectors');
+    sub.XTick = 1:10;
+    sub.YTickLabel = [];
+    xlabel('Feature vectors');
     sub.XRuler.Axle.Visible = 'off';
     sub.YRuler.Axle.Visible = 'off';
-    labels = repmat({''}, [1 15]);
-    for j=[1 5 10 15]
-        labels{j} = sprintf('Bin %d', j);
+    labels = repmat({''}, [1 5]);
+    for j=1:5
+        labels{j} = sprintf('%g-%g kHz', (j-1)*.3, j*.3);
     end
     things = {'Fn', 'Ft', 'V'};
     for thing=1:length(things)
@@ -584,9 +641,18 @@ for i=1:2
         labels{end+1} = sprintf('Std %s', things{thing});
     end
     for j=1:length(labels)
-        text(j, 11, labels{j}, 'Rotation',-90, 'FontSize',14);
+        text(.3, j, labels{j}, 'FontSize',12, 'HorizontalAlignment','right');
     end
-    print('-dpdf', sprintf('icra17_fv_%d_3.pdf', i));
+    if ~dosub
+        print('-dpdf', sprintf('icra17_fv_%d_2.pdf', i));
+    end
+end
+
+if ~dosub
+    figure;
+    set(colorbar, 'XTick', [0 1], 'XTickLabel', {'min' 'max'});
+    colormap jet;
+    print -dpdf icra17_fv_colorbar.pdf;
 end
 
 %% run both grid searches (cellsplit expand first)

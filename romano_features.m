@@ -51,13 +51,16 @@ function cells = romano_features_pre(force, pose, vibe, mass, dur, thresh, start
     
     chunks = zeros(0, 2);
     idx = start:stop; % between taps
-    idx((speed < thresh(1)) | (abs(forcefiltsub(:,3)) < thresh(2))) = []; % speed/force thresholds
+    if numel(thresh) > 1
+        idx((speed < thresh(1)) | (abs(forcefiltsub(:,3)) < thresh(2))) = []; % speed/force thresholds
+    end
     divs = [1 find(diff(idx) > 100) length(idx)]; % divide into continuous-ish segments
     for d=1:(length(divs)-1)
         t = idx(divs(d));
         while t+floor(dur) <= idx(divs(d+1))
             chunks = [chunks
                       t-start+1 t+floor(dur)-start+1];
+            %fprintf('chunk from %d to %d (len=%d)\n', t-start+1, t+floor(dur)-start+1, (t+floor(dur)-start+1) - (t-start+1));
             t = t+floor(dur)+1;
         end
     end

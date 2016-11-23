@@ -88,7 +88,11 @@ function [v, int, vbody, vend, vint, vbodyint, vendint, accint, accworld, intbod
     if isempty(acc)
         accint = [];
     else
-        accint = [int(:,1) interp1(acc(:,1), acc(:,[2 3 6]), int(:,1))];
+        % with the ADXL335 it must be [2 4 5] (those are the only pins that
+        % are connected)
+        % with the ADXL326 I am confused as to whether it should have been
+        % [2 4 5] or [2 3 6] (maybe it doesn't matter?)
+        accint = [int(:,1) interp1(acc(:,1), acc(:,[2 4 5]), int(:,1))];
     end
     % transform Mini40 and IMU into body frame and world frame
     fprintf('\ttransforming force\n');

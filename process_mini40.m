@@ -32,10 +32,22 @@ function [ft, mic, acc, raw] = process_mini40(accref, raw, bias, tf)
     acc = [raw(:,1) bitshift(raw(:,[20 22 24 26 28 30]), 8) + raw(:,[21 23 25 27 29 31])];
     ft = convsign(ft);
     ft(:,2:end) = ft(:,2:end) * 0.002;
+    
+    % translate accelerometer reference code to offset value
     ref = zeros(size(acc,1),1);
     ref(accref == 100) = 2048;
     ref(accref == 104) = 1650;
-    acc(:,2:end) = bsxfun(@minus, acc(:,2:end), ref)/4096 * (16*9.81); % w/ int ref, zero is still at 3.3/2
+    
+    % decide on scale factor
+    if acc(:,[3 6 7]) < 500 % when I wired up the new accs I tied these pins to ground
+        fprintf('Using 3G scale factor for new accelerometers (ADXL335)!\n');
+        scale = 3;
+    else
+        fprintf('Using 16G scale factor for old accelerometers (ADXL326)!\n');
+        scale = 16;
+    end
+    
+    acc(:,2:end) = bsxfun(@minus, acc(:,2:end), ref)/4096 * (scale*9.81); % w/ int ref, zero is still at 3.3/2
 
     % bias and transform
     ft(:,2:end) = (tf * bsxfun(@minus, ft(:,2:end), bias)')';

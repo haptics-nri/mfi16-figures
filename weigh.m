@@ -34,11 +34,25 @@ function [mass, fbias, m_err, com, tbias, c_err] = weigh(epdirs, display, testid
     testint = [];
     allint = [];
     for i=1:length(epdirs)
-        int = csvload([epdirs{i} filesep 'teensy.ft.csv'], ...
-                      [{'Timestamp'}, ...
-                       arrayfun(@(x) ['FT' num2str(x)], 0:29, 'UniformOutput',false)]);
+        try
+            int = csvload([epdirs{i} filesep 'teensy.ft.csv'], ...
+                          [{'TeensyDt', 'PacketNumber', 'Timestamp'}, ...
+                           arrayfun(@(x) ['FT' num2str(x)], 0:29, 'UniformOutput',false)]);
+            dt = int(:,1);
+            accref = int(:,2);
+            int = int(:,3:end);
+        catch err
+            if strcmp(err.message, 'Could not find column TeensyDt')
+                % old format
+                int = csvload([prefix 'teensy.ft.csv'], ...
+                              [{'Timestamp'}, ...
+                              arrayfun(@(x) ['FT' num2str(x)], 0:29, 'UniformOutput',false)]);
+            end
+            dt = [];
+            accref = 100*ones(size(int,1),1);
+        end
 
-        int = process_mini40(int, zeros(1,6));
+        int = process_mini40(accref, int, zeros(1,6));
         
         a = round(size(int,1)*1/10); % middle 80% (FIXME magic number)
         b = round(size(int,1)*9/10);

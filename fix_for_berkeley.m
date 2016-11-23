@@ -1,8 +1,12 @@
 %%
 
-load icra17_final;
+icra17_figures_1;
+icra17_figures_2;
+icra17_figures_4;
+icra17_figures_6;
+icra17_figures_7;
 icra17_figures_8;
-icra17_figures_9; % TODO redo this???
+icra17_figures_9;
 icra17_figures_10;
 
 %%

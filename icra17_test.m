@@ -1,4 +1,4 @@
-function icra17_test(materials, features, split_idx, gs_acc, nbins, binmode, alpha, nu, gamma)
+function mc_test_confusion = icra17_test(materials, features, split_idx, gs_acc, nbins, binmode, alpha, nu, gamma)
 
     train_features = features(split_idx==1, :);
     test_features = features(split_idx==2, :);

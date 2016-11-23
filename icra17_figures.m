@@ -6,8 +6,7 @@
 addpath(genpath('RANSAC-Toolbox'))
 addpath('libsvm/matlab')
 
-%DATADIR = '/Volumes/shared/Projects/Proton Pack/Data';
-DATADIR = '../../nri/data';
+DATADIR = '../data';
 
 %% sphere calibration (see go_sphere_again.m)
 
@@ -100,7 +99,7 @@ freecalib.t = t;
 
 date = '20160811';
 [~,f] = load_stick([DATADIR filesep date filesep 'weigh/1/']);
-[~,r] = sphereFit_ransac(f(:,2:4)); % 98.9% inliers
+[c,r] = sphereFit_ransac(f(:,2:4)); % 98.9% inliers
 
 mass = r/9.81;
 
@@ -138,375 +137,92 @@ flowtype = 'stickcam';
 
 % end-effector mass comes from calibration above
 
-data = containers.Map;
-episodes = dir([DATADIR filesep date filesep flowtype]);
-for ep = 1:length(episodes)
-    if episodes(ep).name(1) == '.'
-        continue;
-    elseif str2num(episodes(ep).name) < 7 % change this to select end-effector
-        continue;
-    end
-    
-    flow = parse_flow([DATADIR filesep date filesep flowtype filesep episodes(ep).name filesep 'stickcam.flow']);
-    material = flow.answers('surface name').text;
-    fprintf('Loading %s (%s)...\n', episodes(ep).name, material);
-    [v, int, da,dg,mi, acc, ma, dt, o,b, motrak] = ...
-        load_stick([DATADIR filesep date filesep flowtype filesep episodes(ep).name filesep]);
-    data(material) = struct('v',v, 'int',int, 'acc',acc, ...
-                            'imu', struct('acc',da, 'gyro',dg, 'mag',ma), ...
-                            'sensor', struct('opto',o, 'bio',b), ...
-                            'motrak',motrak, 'dt',dt);
-end
+[data14, materials14] = icra17_load(DATADIR, date, flowtype, @(x) x < 7);
+[data38, materials38] = icra17_load(DATADIR, date, flowtype, @(x) x > 5);
+assert(all(cellfun(@strcmp, materials14, materials38)));
+materials = materials14;
 
-materials = data.keys;
+%% load in some manually picked values
 
-if false
-    for m = 1:length(materials)
-        % replace NUC timestamps with Teensy deltas
-        ep = data(materials{m});
-        ep.nuc_t = ep.int(:,1);
-        ep.int(:,1) = ep.int(1,1) + cumsum(bitand(ep.dt, 65535))/1e6;
-        data(materials{m}) = ep;
-    end
-end
+% NB to find these values:
+% 1. plot(d.v(:,1)-d.v(1,1), d.v(:,2:4), d.int(:,1)-d.v(1,1), d.int(:,2:4))
+% 2. d.off = -mean([force spike maxima] - [position spike minima]);
+% 3. run the icra17_process steps
+% 4. plot(d.iws(:,2:4))
+% 5. d.ss = [index just after second spike, index just before third spike];
+% 6. plot(d.biws(:,2:4))
+% 7. d.bss = [index just after second spike, index just before third spike];
 
-%% process with vicon
+d = data14('abs');
+    d.off = 16.0213;
+    d.ss =  [28490 125800];
+    d.bss = [15400 113000];
+data14('abs') = d;
+d = data14('glitter');
+    d.off = 16.0197;
+    d.ss =  [32500 121400];
+    d.bss = [20130 108500];
+data14('glitter') = d;
+d = data14('silk');
+    d.off = 16.0192;
+    d.ss =  [31560 124600];
+    d.bss = [18710 111500];
+data14('silk') = d;
+d = data14('vinyl');
+    d.off = 16.0197;
+    d.ss =  [27220 131200];
+    d.bss = [14260 118600];
+data14('vinyl') = d;
+d = data14('wood');
+    d.off = 16.0158;
+    d.ss =  [27520 128800];
+    d.bss = [14210 116000];
+data14('wood') = d;
 
-for m = 1:length(materials)
-    ep = data(materials{m});
-    
-    [~,~,~,~,~,~, vei, ai, ~,~,~, iws] = process_stick(ep.v, ep.int, ep.acc, mass, [0;0;0], H_vic2bod, H_m402bod, H_bal2imu, -ep.off);
-    ep.vei = vei;
-    ep.ai = ai;
-    ep.iws = iws;
-    
-    data(materials{m}) = ep;
-end
+d = data38('abs');
+    d.off = 15.9987;
+    d.ss =  [24647 140441];
+    d.bss = [11935 127889];
+data38('abs') = d;
+d = data38('glitter');
+    d.off = 16.0027;
+    d.ss =  [30130 124500];
+    d.bss = [17800 111800];
+data38('glitter') = d;
+d = data38('silk');
+    d.off = 16.0005;
+    d.ss =  [28960 121400];
+    d.bss = [17220 108900];
+data38('silk') = d;
+d = data38('vinyl');
+    d.off = 16.0048;
+    d.ss =  [26920 130700];
+    d.bss = [14470 118200];
+data38('vinyl') = d;
+d = data38('wood');
+    d.off = 16.0030;
+    d.ss =  [29670 124600];
+    d.bss = [16840 111800];
+data38('wood') = d;
 
-%% process with bluefox
+%% process
 
-for m = 1:length(materials)
-    ep = data(materials{m});
-    
-    [~,~,~,~,~,~, vei, ai, ~,~,~, iws] = process_stick(ep.motrak, ep.int, ep.acc, mass, [0;0;0], H_vic2bod, H_m402bod, H_bal2imu);
-    ep.bvei = vei;
-    ep.bai = ai;
-    ep.biws = iws;
-    
-    data(materials{m}) = ep;
-end
+data14 = icra17_process('both', data14, mass, H_vic2bod, H_m402bod, H_bal2imu);
+data38 = icra17_process('both', data38, mass, H_vic2bod, H_m402bod, H_bal2imu);
 
 %% SVM stuff (following Romano & KJK 2014 + Strese & Schuwerk & Steinbach 2015)
 
-% DO NOT RUN THIS AGAIN -- TRAINING ON TEST SET WILL RESULT
+[features14, split_idx14, bfeatures14, bsplit_idx14] = icra17_svm(data14, mass);
+[features38, split_idx38, bfeatures38, bsplit_idx38] = icra17_svm(data38, mass);
 
-% extract features
-features = cell(0, 5); % cols: label, vibration, speed, normal, tangential
-bfeatures = cell(0, 5); % cols: label, vibration, speed, normal, tangential
-for m = 1:length(materials)
-    ep = data(materials{m});
-    
-    fprintf('Romano features for %s\n', materials{m});
-    %%
-    new_feats = romano_features('pre', ep.iws, ep.vei, ep.ai, mass, 150, [5 .5], ep.ss);
-    %%
-    features = [features
-                num2cell(repmat(m, size(new_feats,1), 1)) new_feats];
-            
-    new_feats = romano_features('pre', ep.biws, ep.bvei, ep.bai, mass, 150, [5 .5], ep.bss);
-    bfeatures = [bfeatures
-                num2cell(repmat(m, size(new_feats,1), 1)) new_feats];
-end
+%% grid searches!
 
-% test/train split
-
-% 4/5 train, 1/5 test
-split_idx = randsample(1:2, size(features,1), true, [4/5 1/5]);
-bsplit_idx = randsample(1:2, size(bfeatures,1), true, [4/5 1/5]);
-
-%% vicon features
-
-train_features = features(split_idx==1, :);
-test_features  = features(split_idx==2, :);
-
-%% bluefox features
-
-train_features = bfeatures(bsplit_idx==1, :);
-test_features  = bfeatures(bsplit_idx==2, :);
-
-%%
-% crossval
-
-cv = cvpartition(cell2mat(train_features(:,1)), 'KFold', 3);
-oc_confusion = cell(1, cv.NumTestSets);
-mc_confusion = cell(1, cv.NumTestSets);
-oc_answers = cell(1, cv.NumTestSets);
-mc_answers = cell(1, cv.NumTestSets);
-%%
-% hyperparameters
-nbins = 20:10:60; % 20
-binmode = {'perceptual'}; % perceptual
-alpha = 0.1:0.05:0.4; % 25
-nu = .05:0.05:0.3; % .6
-gamma = 10:20:100; % 200
-stmode = true; % false
-
-gs_limits = [length(nbins) length(binmode) length(alpha) length(nu) length(gamma) length(stmode)];
-gs_idx = repmat(ones(size(gs_limits)), prod(gs_limits), 1);
-for i=2:size(gs_idx,1)
-    gs_idx(i,:) = gs_idx(i-1,:);
-    for j=size(gs_idx,2):-1:1
-        if gs_idx(i,j) == gs_limits(j)
-            gs_idx(i,j) = 1;
-        else
-            gs_idx(i,j) = gs_idx(i,j) + 1;
-            break;
-        end
-    end
-end
-%%
-gs_acc = zeros(size(gs_idx,1),1);
-clear romano_features; % clear persistent vars
-elapsed = tic;
-for gsi=1:size(gs_idx,1)
-    gs_nbins = nbins(gs_idx(gsi,1));
-    gs_binmode = binmode{gs_idx(gsi,2)};
-    gs_alpha = alpha(gs_idx(gsi,3));
-    gs_nu = nu(gs_idx(gsi,4));
-    gs_gamma = gamma(gs_idx(gsi,5));
-    gs_stmode = stmode(gs_idx(gsi,6));
-    %%
-    iter = tic;
-    fprintf('Grid search with nbins=%d, binmode=%s, alpha=%g, nu=%g, gamma=%g, stmode=%d\n', gs_nbins, gs_binmode, gs_alpha, gs_nu, gs_gamma, gs_stmode);
-    cv_acc = zeros(cv.NumTestSets,1);
-    for cvi = 1:cv.NumTestSets
-        train_vectors = [cell2mat(train_features(cv.training(cvi),1)) ...
-                         romano_features('post', train_features(cv.training(cvi),2:end), gs_nbins, gs_binmode, gs_alpha, gs_stmode)];
-        val_vectors   = [cell2mat(train_features(cv.test(cvi),    1)) ...
-                         romano_features('post', train_features(cv.test(cvi)    ,2:end), gs_nbins, gs_binmode, gs_alpha, gs_stmode)];
-
-        trainmean = mean(train_vectors(:,2:end));
-        train_vectors(:,2:end) = bsxfun(@minus, ...
-                                        train_vectors(:,2:end), ...
-                                        trainmean);
-        val_vectors  (:,2:end) = bsxfun(@minus, ...
-                                        val_vectors  (:,2:end), ...
-                                        trainmean);
-        trainrange = range(train_vectors(:,2:end));
-        train_vectors(:,2:end) = bsxfun(@rdivide, ...
-                                        train_vectors(:,2:end), ...
-                                        trainrange);
-        val_vectors  (:,2:end) = bsxfun(@rdivide, ...
-                                        val_vectors  (:,2:end), ...
-                                        trainrange);
-
-        models = cell(5, ... % vibration, speed+normal, normal+tangential, speed+normal+tangential, all
-                      length(materials)+1); % OC models for each materials, one MC model
-        common_args = ' -q ';
-        %oc_train_args = ['-s 2 -t 2 -n 0.0303' common_args];
-        mc_train_args = [sprintf('-m 1000 -s 1 -t 2 -n %g -g %g', gs_nu, gs_gamma) common_args];
-        test_args = common_args;
-
-        %for mi=1:length(materials)
-        %    fprintf('Material: %s\n', materials{mi});
-        %    %%
-        %    % normalize features
-        %    train_labels =  ones(nnz(train_vectors(:,1)==mi), 1);
-        %    val_labels   =  ones(nnz(val_vectors  (:,1)==mi), 1);
-        %    unval_labels = -ones(nnz(val_vectors  (:,1)~=mi), 1);
-        %    train_feats = train_vectors(train_vectors(:,1)==mi, 2:end);
-        %    val_feats   = val_vectors  (val_vectors  (:,1)==mi, 2:end);
-        %    unval_feats = val_vectors  (val_vectors  (:,1)~=mi, 2:end);
-        %
-        %    % train SVM
-        %    gamma = 0.0303;%evangelista(train_feats);
-        %    models{mi}                    = svmtrain(  train_labels, train_feats, sprintf('%s -g %g', train_args, gamma));
-        %    [in_pred, in_acc, in_prob]    = svmpredict(val_labels  , val_feats  , models{mi}, test_args);
-        %    [out_pred, out_acc, out_prob] = svmpredict(unval_labels, unval_feats, models{mi}, test_args);
-        %    fprintf('\tin-class accuracy: %g%%\n' , 100*nnz(in_pred  == 1)/length(in_pred));
-        %    fprintf('\tout-class accuracy: %g%%\n', 100*nnz(out_pred ~= 1)/length(out_pred));
-        %end
-
-        models{end} = svmtrain(train_vectors(:,1), train_vectors(:,2:end), mc_train_args);
-
-        if ~isempty(models{end})
-            % evaluate by comparing all OCSVMs and the MCSVM
-            %oc_confusion{cvi} = zeros(length(materials));
-            mc_confusion{cvi} = zeros(length(materials));
-            %prob = zeros(size(val_vectors,1),length(materials));
-            %for mi=1:length(materials)
-            %    prob(:,mi) = rabaoui_dissim(models{mi}, val_vectors(:,2:end));
-            %end
-            %[~, oc_answers{cvi}] = min(prob, [], 2);
-            mc_answers{cvi} = svmpredict(zeros(size(val_vectors,1),1), val_vectors(:,2:end), models{end}, '-q');
-
-            for i=1:length(materials)
-                for j=1:length(materials)
-            %        oc_confusion{cvi}(i,j) = nnz(oc_answers{cvi}(val_vectors(:,1)==i) == j);
-                    mc_confusion{cvi}(i,j) = nnz(mc_answers{cvi}(val_vectors(:,1)==i) == j);
-                end
-            end
-
-            cv_acc(cvi) = sum(diag(mc_confusion{cvi}))/sum(sum(mc_confusion{cvi}));
-            fprintf('\tFold %d: MC %g%%\n', cvi, 100*cv_acc(cvi));
-        else
-            fprintf('\tFold %d: failed to train\n', cvi);
-            cv_acc(cvi) = 0;
-        end
-    end
-    gs_acc(gsi) = mean(cv_acc);
-    fprintf('\tGS #%d/%d: mean acc %g%%, iter %g s / elapsed %g s\n', gsi, size(gs_idx,1), 100*gs_acc(gsi), toc(iter), toc(elapsed));
-end
-
-%% test on test set (first run GS/CV to completion)
-
-[~, gsi] = max(gs_acc);
-gs_nbins = nbins(gs_idx(gsi,1));
-gs_binmode = binmode{gs_idx(gsi,2)};
-gs_alpha = alpha(gs_idx(gsi,3));
-gs_nu = nu(gs_idx(gsi,4));
-gs_gamma = gamma(gs_idx(gsi,5));
-gs_stmode = stmode(gs_idx(gsi,6));
-%%
-train_vectors = [cell2mat(train_features(:,1)) ...
-                          romano_features('post', train_features(:,2:end), gs_nbins, gs_binmode, gs_alpha, gs_stmode)];
-test_vectors  = [cell2mat(test_features(:,1)) ...
-                          romano_features('post', test_features (:,2:end), gs_nbins, gs_binmode, gs_alpha, gs_stmode)];
-trainmean = mean(train_vectors(:,2:end));
-train_vectors(:,2:end) = bsxfun(@minus, ...
-                                train_vectors(:,2:end), ...
-                                trainmean);
-test_vectors (:,2:end) = bsxfun(@minus, ...
-                                test_vectors (:,2:end), ...
-                                trainmean);
-trainrange = range(train_vectors(:,2:end));
-train_vectors(:,2:end) = bsxfun(@rdivide, ...
-                                train_vectors(:,2:end), ...
-                                trainrange);
-test_vectors (:,2:end) = bsxfun(@rdivide, ...
-                                test_vectors (:,2:end), ...
-                                trainrange);
-mc_train_args = [sprintf('-m 1000 -s 1 -t 2 -n %g -g %g', gs_nu, gs_gamma) common_args];
-final_model = svmtrain(train_vectors(:,1), train_vectors(:,2:end), mc_train_args);
-mc_test_answers = svmpredict(zeros(size(test_vectors,1),1), test_vectors(:,2:end), final_model, test_args);
-mc_test_confusion = zeros(length(materials));
-for i=1:length(materials)
-    for j=1:length(materials)
-        mc_test_confusion(i,j) = nnz(mc_test_answers(test_vectors(:,1)==i) == j);
-    end
-end
-fprintf('Test set accuracy: %g\n', sum(diag(mc_test_confusion))/sum(sum(mc_test_confusion)));
-
-
-%% feature vectors -- first set gsi to optimal and run the grid search iter
-fv1 = figure;
-%fv2 = figure;
-f = romano_features('post', train_features(:,2:end), gs_nbins, gs_binmode, gs_alpha, gs_stmode);
-f = bsxfun(@minus, f, mean(f));
-f = bsxfun(@rdivide, f, range(f));
-allmin = min(min(f));
-allmax = max(max(f));
-names = {'ABS', 'glitter paper', 'silk', 'vinyl', 'wood'};
-for i=1:5
-    idx = cell2mat(train_features(:,1))==i;
-    g = f(idx,:);
-    g = [g mean(g(:,[end-5 end-3 end-1]), 2)];
-    g = sortrows(g, size(g,2));
-    g = g(:,1:end-1);
-    g(:, (end-3):end) = g(:,[end-1 end end-3 end-2]); % swap V and Ft
-
-    figure(fv1);
-    subplot(5,1,i);
-    imagesc(g, [allmin allmax]);
-    set(gca, 'xtick', []);
-    set(gca, 'ytick', []);
-    box off; axis off;
-    text(0.3, size(g,1)/2, ...
-         names{i}, ...
-         'FontSize', 14, ...
-         'HorizontalAlignment', 'right', ...
-         'Interpreter', 'tex');
-     
-    %figure(fv2);
-    %subplot(1,6,i);
-    %cor = corrcoef(g(:,1:end-6));
-    %imagesc(cor);
-end
-figure(fv1);
-a = subplot(5,1,5);
-axis on;
-a.XRuler.Axle.Visible = 'off';
-a.YRuler.Axle.Visible = 'off';
-%a.XTick = 1:10;
-labels = {};
-for i=1:gs_nbins
-    labels{end+1} = sprintf('Bin %d', i);
-end
-things = {'Fn', 'Ft', 'V'};
-for thing=1:length(things)
-    labels{end+1} = sprintf('Mean %s', things{thing});
-    if gs_stmode
-        labels{end+1} = sprintf('Std %s', things{thing});
-    end
-end
-%a.XTickLabels = labels;
-%a.XTickLabelRotation = 70;
-%a.TickLength = [0 0];
-for i=1:length(labels)
-    text(i, size(g,1)*1.2, labels{i}, 'Rotation',-90, 'FontSize',14);
-end
-colormap jet;
-axes('Position', [0.05 0.05 0.95 0.9], 'Visible', 'off');
-set(colorbar('ticks',[]), 'edgecolor','none');
-text(1.08, 1, '1', 'fontsize',14);
-text(1.08, 0, '0', 'fontsize',14);
-print -dpdf icra17_feature_vectors.pdf;
-%figure(fv2);
-%subplot(1,6,6);
-%colormap jet;
-%colorbar;
+all_grid;
 
 %% confusion matrices -- first set gsi to optimal and run the test set
-figure;
-imagesc(bsxfun(@rdivide, mc_test_confusion, sum(mc_test_confusion, 2)), [0 1]);
-colormap(flipud(gray));
-ax = gca;
-ax.XTick = [1 2 3 4 5];
-ax.YTick = [1 2 3 4 5];
-ax.XTickLabel = {'ABS', 'glitter paper', 'silk', 'vinyl', 'wood'};
-ax.YTickLabel = {'ABS', 'glitter paper', 'silk', 'vinyl', 'wood'};
-ax.FontSize = 14;
-xlabel('Detected material');
-ylabel('Actual material');
-ax.XLabel.Position = ax.XLabel.Position + [0 0.1 0];
-for i=1:length(materials)
-    for j=1:length(materials)
-        if i == j
-            c = 'white';
-        else
-            c = 'black';
-        end
-        text(j, i, sprintf('%.3f', mc_test_confusion(i,j)/sum(mc_test_confusion(i,:))), ...
-             'FontSize',14, 'Color',c, 'HorizontalAlignment','center');
-    end
-end
-print -dpdf icra17_confusion_precision.pdf;
 
-fprintf('\n');
-fprintf('Surface & Precision & Recall & $F_1$ score\n');
-for i=1:length(materials)
-    fprintf('%s  &  ', material_names{i});
-    others = setdiff(1:5, i);
-    tp = mc_test_confusion(i,i);
-    fp = sum(mc_test_confusion(others,i));
-    tn = sum(sum(mc_test_confusion(others,others)));
-    fn = sum(mc_test_confusion(i,others));
-    prec = tp/(tp+fp);
-    rec = tp/(tp+fn);
-    f1 = 2*prec*rec/(prec+rec);
-    fprintf('%.3f  &  %.3f  &  %.3f', prec, rec, f1);
-    fprintf(' \\\\ \n');
-end
+fig_confusion(conf14vp, 'icra17_confusion_precision_vicon.pdf');
+fig_confusion(conf38bn, 'icra17_confusion_precision_bluefox.pdf');
 
 %% accelerometer comparison figure
 
@@ -617,14 +333,11 @@ for i=1:2
     
     posted = d{i}.posted;
     posted = posted';
-    %posted = posted - minmin;
-    %posted = posted / (maxmax - minmin);
     
     cla;
     imagesc(posted, clim);
     set(gca, 'FontSize',12);
     colormap jet;
-    %colorbar;
     box off;
     sub.XTick = 1:10;
     sub.YTickLabel = [];
@@ -654,27 +367,3 @@ if ~dosub
     colormap jet;
     print -dpdf icra17_fv_colorbar.pdf;
 end
-
-%% run both grid searches (cellsplit expand first)
-
-% vicon
-icra17_figures_21;
-icra17_figures_23;
-icra17_figures_24;
-icra17_figures_29;
-vgs_acc = gs_acc;
-
-% bluefox
-icra17_figures_22;
-icra17_figures_23;
-icra17_figures_24;
-icra17_figures_29;
-bgs_acc = gs_acc;
-
-%% GS sensitivity analysis
-
-gs_plots(vgs_acc, gs_idx(:,[1 3 4 5]), {'nbins', nbins; 'alpha', alpha; 'nu', nu; 'gamma', gamma});
-suplabel('Vicon', 't');
-
-gs_plots(bgs_acc, gs_idx(:,[1 3 4 5]), {'nbins', nbins; 'alpha', alpha; 'nu', nu; 'gamma', gamma});
-suplabel('Bluefox', 't');

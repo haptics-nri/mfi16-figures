@@ -1,2 +1,3 @@
 % part 28 of /Users/alex/Documents/research/proton/code/calibration/motion/icra17_figures.m
-            gs_idx(i,j) = 1;
+        labels{end+1} = sprintf('Mean %s', things{thing});
+        labels{end+1} = sprintf('Std %s', things{thing});

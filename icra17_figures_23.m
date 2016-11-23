@@ -1,6 +1,2 @@
 % part 23 of /Users/alex/Documents/research/proton/code/calibration/motion/icra17_figures.m
-% bluefox features
-
-train_features = bfeatures(bsplit_idx==1, :);
-test_features  = bfeatures(bsplit_idx==2, :);
-
+            text(d{i}.iws(d{i}.a+j+75)-d{i}.iws(1,1), -14, sprintf('%d', j/150+1), 'color',[.6 .6 .6], 'horizontalalignment','center');

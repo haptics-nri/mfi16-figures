@@ -1,3 +1,2 @@
 % part 29 of /Users/alex/Documents/research/proton/code/calibration/motion/icra17_figures.m
-            gs_idx(i,j) = gs_idx(i,j) + 1;
-            break;
+        text(.3, j, labels{j}, 'FontSize',12, 'HorizontalAlignment','right');

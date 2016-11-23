@@ -3,7 +3,7 @@
 
 date = '20160811';
 [~,f] = load_stick([DATADIR filesep date filesep 'weigh/1/']);
-[~,r] = sphereFit_ransac(f(:,2:4)); % 98.9% inliers
+[c,r] = sphereFit_ransac(f(:,2:4)); % 98.9% inliers
 
 mass = r/9.81;
 

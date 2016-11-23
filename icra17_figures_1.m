@@ -7,6 +7,5 @@
 addpath(genpath('RANSAC-Toolbox'))
 addpath('libsvm/matlab')
 
-%DATADIR = '/Volumes/shared/Projects/Proton Pack/Data';
-DATADIR = '../../nri/data';
+DATADIR = '../data';
 

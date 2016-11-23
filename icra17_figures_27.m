@@ -1,6 +1,2 @@
 % part 27 of /Users/alex/Documents/research/proton/code/calibration/motion/icra17_figures.m
-        if gs_idx(i,j) == gs_limits(j)
-            icra17_figures_28
-        else
-            icra17_figures_29
-        end
+        labels{j} = sprintf('%g-%g kHz', (j-1)*.3, j*.3);

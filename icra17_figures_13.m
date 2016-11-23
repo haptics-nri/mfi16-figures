@@ -1,6 +1,6 @@
 % part 13 of /Users/alex/Documents/research/proton/code/calibration/motion/icra17_figures.m
-        % replace NUC timestamps with Teensy deltas
-        ep = data(materials{m});
-        ep.nuc_t = ep.int(:,1);
-        ep.int(:,1) = ep.int(1,1) + cumsum(bitand(ep.dt, 65535))/1e6;
-        data(materials{m}) = ep;
+% confusion matrices -- first set gsi to optimal and run the test set
+
+fig_confusion(conf14vp, 'icra17_confusion_precision_vicon.pdf');
+fig_confusion(conf38bn, 'icra17_confusion_precision_bluefox.pdf');
+

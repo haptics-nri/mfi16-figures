@@ -1,4 +1,4 @@
-%% generates tbl:regression for the MFI 2016 paper
+%% generates figures for the MFI 2016 paper
 
 % calibrates using the datasets taken on 2/26/16 and 2/23/16
 % loads the datasets taken on 2/19/16 and 3/10/16 and does machine learning
@@ -119,7 +119,7 @@ H_bal2imu = [ 1       0       0       254.84
               0       0       0         1   ];
 
 syms x y z real;
-R = freecalib.R;
+R = freecalib.R';
 H1 = [R [0 y z]';      0 0 0 1];
 H2 = [eye(3) [x 0 0]'; 0 0 0 1];
 S = solve(H1 * H2 * [0 0 0 1]' == [d 1]');
@@ -403,7 +403,7 @@ gs_alpha = alpha(gs_idx(gsi,3));
 gs_nu = nu(gs_idx(gsi,4));
 gs_gamma = gamma(gs_idx(gsi,5));
 gs_stmode = stmode(gs_idx(gsi,6));
-
+%%
 train_vectors = [cell2mat(train_features(:,1)) ...
                           romano_features('post', train_features(:,2:end), gs_nbins, gs_binmode, gs_alpha, gs_stmode)];
 test_vectors  = [cell2mat(test_features(:,1)) ...
@@ -472,11 +472,11 @@ ylabel Y
 zlabel Z
 legend('Measured gravity in body frame', 'World-frame gravity transformed to body frame', 'location','southeast')
 print -dpdf mfi16_freespace_grav.pdf
-
+%%
 % typical dataset
 figure;
 subplot(2,1,1);
-plot(vbodyint{3,2,1}(:,1)-vbodyint{3,2,1}(1,1), vbodyint{3,2,1}(:,2:4));
+plot(vendint{3,2,1}(:,1)-vendint{3,2,1}(1,1), vendint{3,2,1}(:,2:4));
 yl = ylabel('Position (mm)');
 yl.Position(1) = yl.Position(1) - .3;
 legend('X', 'Y', 'Z', 'location','east');

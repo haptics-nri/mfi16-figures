@@ -1,4 +1,4 @@
-function [features, imp, mov] = steinbach_features(feats, accel, friction, sound)
+function [features, hac, imp, mov] = steinbach_features(feats, accel, friction, sound)
     if nargin == 2
         strukt = accel;
         accel = strukt.acc;
@@ -21,6 +21,8 @@ function [features, imp, mov] = steinbach_features(feats, accel, friction, sound
             error('No impact found in first 25% of data');
         end
     end
+
+    hac = [flat(2) imp_start-1]; % TODO find start of hand acceleration
     imp = [imp_start imp_start+round(0.2*accel.Fs)];
     mov = [imp(2)+1 length(accel.data)]; % TODO find start of hand motion
 
@@ -42,7 +44,14 @@ function [features, imp, mov] = steinbach_features(feats, accel, friction, sound
     % split acceleration trace into hand acceleration $h$ and impact data $i$
     % find three largest contact impulses in $i$ and calculate temporal centroid $n$
     % H = max(i)/n * 1/sum(h)
-    % but how is the spike detection done???
+    if any(strcmp('H', feats))
+        n = findpeaks(accel.data(imp(1):imp(2)), 'NPeaks',3, 'MinPeakProminence',0.05, 'MinPeakDistance',100);
+        acc_hand = abs(accel.data(hac(1):hac(2)));
+        Hd = design(fdesign.lowpass('N,F3db', 1, 12*2*pi/accel.Fs), 'butter');
+        acc_hand = filter(Hd, acc_hand);
+        H = max(abs(accel.data(imp(1):imp(2)))) / mean(n) / sum(acc_hand);
+        features = [features H];
+    end
 
     %% damping (accel feature) -> SC
     % split acceleration trace into hand acceleration $h$ and impact data $i$
@@ -52,7 +61,7 @@ function [features, imp, mov] = steinbach_features(feats, accel, friction, sound
         i = accel.data(imp(1):imp(2));
         m = 4096;
         I = dct(i, m);
-        SC = sum(abs(I(1:m/2)).^2 .* linspace(0, accel.Fs/2, m/2)') / sum(abs(I(1:m/2)).^2);
+        SC = sum(I(1:m/2).^2 .* linspace(0, accel.Fs/2, m/2)') / sum(I(1:m/2).^2);
         features = [features SC];
     end
 
@@ -65,7 +74,7 @@ function [features, imp, mov] = steinbach_features(feats, accel, friction, sound
     % D_k = mean(X_n - X_{n+100}) for each window k
     % SR = log10(sum(D_k.^2))
     if any(strcmp('TR', feats))
-        Hd = design(fdesign.highpass('N,F3db', 1, 300*2*pi/accel.Fs), 'butter');
+        Hd = design(fdesign.highpass('N,F3db', 1, 100*2*pi/accel.Fs), 'butter');
         accfilt = filter(Hd, accel.data(mov(1):mov(2)));
         [C,L] = wavedec(accfilt, 5, 'coif3');
         d1 = abs(wrcoef('d', C, L, 'coif3', 1));
@@ -103,7 +112,7 @@ function [features, imp, mov] = steinbach_features(feats, accel, friction, sound
         xfilt = filter(Hd, x);
         m = zeros(1, floor(length(xfilt)/200));
         for i=1:length(m)
-            m = mean(abs(xfilt(((i-1)*200+1):(i*200))));
+            m(i) = mean(abs(xfilt(((i-1)*200+1):(i*200))));
         end
         s = filter(ones(100,1)/100, 1, abs(m));
         WV = 1 + log10(std(m - s)); % the +1 comes from personal correspondence, but why‽‽‽
@@ -152,6 +161,69 @@ function [features, imp, mov] = steinbach_features(feats, accel, friction, sound
         features = [features RG];
     end
 
+    %% friction features
+    if any(strcmp('Fr', feats)) % only in conference paper
+        Fr = mean(friction.data);
+        features = [features Fr];
+    end
+    if any(strcmp('FM', feats)) % only in journal paper
+        vd = abs(friction.data);
+        x = accel.data(mov(1):mov(2));
+        a = 1;
+        b = 1;
+        FM = (a*mean(vd) + b*std(diff(vd)))/mean(abs(x));
+        features = [features FM];
+    end
+
     %% sound features
+    if any(strcmp('SIH', feats))
+        n = findpeaks(accel.data(imp(1):imp(2)), 'NPeaks',3, 'MinPeakProminence',0.05, 'MinPeakDistance',100);
+        acc_hand = abs(accel.data(hac(1):hac(2)));
+        Hd = design(fdesign.lowpass('N,F3db', 1, 12*2*pi/accel.Fs), 'butter');
+        acc_hand = filter(Hd, acc_hand);
+        simp = round(imp*sound.Fs/accel.Fs);
+        H = max(abs(sound.data(simp(1):simp(2),1))) / mean(n) / sum(acc_hand);
+        features = [features H];
+    end
+    if any(strcmp('SILH', feats))
+        L = size(sound.data,1);
+        NFFT = 2^nextpow2(L); % Next power of 2 from length of y
+        SM = fft(sound.data(:,1),NFFT)/L;
+        f = sound.Fs/2*linspace(0,1,NFFT/2+1);
+        lo = [1 4000];
+        hi = [4000 10000];
+        SM_lo = SM(f >= lo(1) & f <= lo(2));
+        SM_hi = SM(f >= hi(1) & f <= hi(2));
+        LH = abs(mean(SM_lo))/abs(mean(SM_hi));
+        features = [features LH];
+    end
+    if any(strcmp('SISR', feats))
+        P = pwelch(sound.data(:,1), [], [], [], sound.Fs);
+        Psum = cumsum(P);
+        SR = Psum(find(Psum >= 0.95*Psum(end), 1));
+        features = [features SR];
+    end
+    if any(strcmp('SISH', feats))
+        simp = round(imp*sound.Fs/accel.Fs);
+        Xi = dct(sound.data(simp(1):simp(2),1));
+        dXi = diff(Xi);
+        dXi(dXi < 0) = 0;
+        i = ceil(length(dXi)/2);
+        f = linspace(1, sound.Fs/2, length(dXi)-i+1)';
+        SH = sum(dXi(i:end) .* f)/sum(dXi(i:end));
+        features = [features SH];
+    end
+    if any(strcmp('SISS', feats))
+        % first calculate SISC
+        simp = round(imp*sound.Fs/accel.Fs);
+        i = sound.data(simp(1):simp(2),1);
+        m = 4096;
+        I = dct(i, m);
+        f = linspace(0, sound.Fs/2, m/2)';
+        SC = sum(I(1:m/2).^2 .* f) / sum(I(1:m/2).^2);
+        % then use that to calculate SISS
+        SS = sum((f - SC).^2 .* I(1:m/2).^2) / sum(I(1:m/2).^2);
+        features = [features SS];
+    end
 end
 

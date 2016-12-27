@@ -66,7 +66,7 @@ end
 
 %% train
 
-feats = {'MF', 'SC', 'TR', 'SR', 'WV', 'SP', 'F', 'RG'};
+feats = {'MF', 'H', 'TR', 'SR', 'WV', 'SP', 'F', 'RG', 'Fr'};
 
 if ~exist('train_episodes', 'var')
     load st_train;

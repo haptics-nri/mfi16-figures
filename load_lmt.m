@@ -15,6 +15,14 @@ function [accel, friction, sound] = load_lmt(datadir, traintest, label, id)
         accel = load_1d(fullfile(datadir, 'Training', 'Accel'), label, sprintf('query%s', id));
         friction = load_1d(fullfile(datadir, 'Training', 'Friction'), label, 'continuosFric');
         sound = load_wav(fullfile(datadir, 'Training', 'Sound'), label, sprintf('sound%s', id));
+
+        % friction data was recorded separately and in one chunk per surface
+        % so we chop out a section using the ID (which is a number from 1-10)
+        i = str2num(id);
+        l = floor(length(friction.data)/10);
+        a = i*l + 1;
+        b = a + l;
+        friction.data = friction.data(a:b);
     else
         accel = load_1d(fullfile(datadir, 'Testing', 'AccelScansDFT321'), label, id);
         friction = load_1d(fullfile(datadir, 'Testing', 'FricScans'), sprintf('%s_Friction', label), id);

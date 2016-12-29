@@ -11,10 +11,22 @@
 % - sound: sound amplitude, Nx2
 function [accel, friction, sound] = load_lmt(datadir, traintest, label, id)
 
+    persistent NAMES;
+    if isempty(NAMES)
+        NAMES = readtable(fullfile(datadir, 'names.csv'));
+    end
+
+    row = find(strcmp(NAMES{:,8}, label));
+    if length(row) == 0
+        error('Label not found');
+    elseif length(row) > 1
+        error('Label not unique (impossible)');
+    end
+
     if strcmp(traintest, 'train')
-        accel = load_1d(fullfile(datadir, 'Training', 'Accel'), label, sprintf('query%s', id));
-        friction = load_1d(fullfile(datadir, 'Training', 'Friction'), label, 'continuosFric');
-        sound = load_wav(fullfile(datadir, 'Training', 'Sound'), label, sprintf('sound%s', id));
+        accel = load_1d(fullfile(datadir, 'Training', 'Accel'), NAMES{row,1}{1}, sprintf('query%s', id));
+        friction = load_1d(fullfile(datadir, 'Training', 'Friction'), NAMES{row,2}{1}, 'continuosFric');
+        sound = load_wav(fullfile(datadir, 'Training', 'Sound'), NAMES{row,3}{1}, sprintf('sound%s', id));
 
         % friction data was recorded separately and in one chunk per surface
         % so we chop out a section using the ID (which is a number from 1-10)
@@ -24,9 +36,9 @@ function [accel, friction, sound] = load_lmt(datadir, traintest, label, id)
         b = a + l;
         friction.data = friction.data(a:b);
     else
-        accel = load_1d(fullfile(datadir, 'Testing', 'AccelScansDFT321'), label, id);
-        friction = load_1d(fullfile(datadir, 'Testing', 'FricScans'), sprintf('%s_Friction', label), id);
-        sound = load_wav(fullfile(datadir, 'Testing', 'SoundScans'), sprintf('%s_Sound', label), id);
+        accel = load_1d(fullfile(datadir, 'Testing', 'AccelScansDFT321'), NAMES{row,4}{1}, id);
+        friction = load_1d(fullfile(datadir, 'Testing', 'FricScans'), sprintf('%s_Friction', NAMES{row,5}{1}), id);
+        sound = load_wav(fullfile(datadir, 'Testing', 'SoundScans'), sprintf('%s_Sound', NAMES{row,6}{1}), id);
     end
 
 end

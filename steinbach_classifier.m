@@ -3,8 +3,8 @@
 addpath(genpath('libsvm'));
 addpath('../steinbach/htk-mfcc');
 DATADIR = '../steinbach/LMT_TextureDB';
-files = dir(fullfile(DATADIR, 'Training', 'Friction', '*.txt'));
-materials = cellfun(@(s) subsref(strsplit(s, '_'), substruct('()', {1})), {files.name});
+NAMES = readtable(fullfile(DATADIR, 'names.csv'));
+materials = table2cell(NAMES(:,8));
 files = dir(fullfile(DATADIR, 'Training', 'Accel', [materials{1} '_query*.txt']));
 train_ids = cellfun(@(s) subsref(regexp(s, '_query(.*)\.txt', 'tokens'), substruct('{}', {1})), {files.name});
 files = dir(fullfile(DATADIR, 'Testing', 'AccelScansDFT321', [materials{1} '_*.txt']));
@@ -66,7 +66,7 @@ end
 
 %% train
 
-feats = {'MF', 'H', 'TR', 'SR', 'WV', 'SP', 'F', 'RG', 'Fr'};
+feats = {'MF', 'H', 'SC', 'TR', 'SR', 'WV', 'SP', 'F', 'RG', 'Fr', 'FM', 'SIH', 'SILH', 'SISR', 'SISH', 'SISS'};
 
 if ~exist('train_episodes', 'var')
     load st_train;
@@ -97,6 +97,8 @@ for i = 1:length(train_episodes)/10
 end
 
 %% I dunno try a fucking SVM I guess
+train_features(isnan(train_features)) = 0;
+val_features(isnan(val_features)) = 0;
 trainmean = mean(train_features);
 train_vectors = bsxfun(@minus, ...
                        train_features, ...
@@ -112,7 +114,7 @@ val_vectors   = bsxfun(@rdivide, ...
                        val_vectors  , ...
                        trainrange);
 
-model = svmtrain(train_labels', train_vectors, '-m 1000 -s 1 -t 2 -n 0.1 -g 5000 -q');
+model = svmtrain(train_labels', train_vectors, '-m 1000 -s 1 -t 2 -n 0.1 -g 0.5 -q');
 answers = svmpredict(zeros(size(val_labels')), val_vectors, model, '-q');
 confusion = zeros(length(materials));
 for i=1:length(materials)

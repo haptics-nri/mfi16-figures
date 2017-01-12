@@ -22,7 +22,11 @@
 function varargout = romano_features(mode, varargin)
     switch mode
         case 'pre'
-            varargout{:} = romano_features_pre(varargin{:});
+            if nargout == 1
+                varargout{1} = romano_features_pre(varargin{:});
+            else
+                [varargout{1}, varargout{2}] = romano_features_pre(varargin{:});
+            end
         case 'post'
             varargout{:} = romano_features_post(varargin{:});
         otherwise
@@ -30,7 +34,7 @@ function varargout = romano_features(mode, varargin)
     end
 end
 
-function cells = romano_features_pre(force, pose, vibe, mass, dur, thresh, startstop)
+function [cells, chunks] = romano_features_pre(force, pose, vibe, mass, dur, thresh, startstop)
 
     % 1. preprocessing
 

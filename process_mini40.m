@@ -39,7 +39,7 @@ function [ft, mic, acc, raw] = process_mini40(accref, raw, bias, tf)
     ref(accref == 104) = 1650;
     
     % decide on scale factor
-    if acc(:,[3 6 7]) < 500 % when I wired up the new accs I tied these pins to ground
+    if median(acc(:,[3 6 7])) < 500 % when I wired up the new accs I tied these pins to ground
         fprintf('Using 3G scale factor for new accelerometers (ADXL335)!\n');
         scale = 3;
     else

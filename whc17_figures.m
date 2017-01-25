@@ -94,11 +94,11 @@ freecalib.t = t;
 
 %% end-effector weighing
 
-date = '20160811';
-[~,f] = load_stick([DATADIR filesep date filesep 'weigh/1/']);
-[c,r] = sphereFit_ransac(f(:,2:4)); % 98.9% inliers
-
-mass = r/9.81;
+date = '20170112';
+load mini40_calib
+[mass, fbias, ~, com, tbias] = weigh({fullfile(DATADIR, date, 'weigh', '1')});
+tbias = tbias';
+save mini40_calib fbias tbias;
 
 %% process calibrations: use d+R to calculate x+y+z for H_vic2bod + H_bal2imu
 
@@ -129,9 +129,9 @@ H_bal2imu(1,4) = S.x;
 %% load data
 
 % dataset parameters
-date = '20170109'; % FIXME also 20161229
 flowtype = 'stickcam';
 
+% load datasets from both collection days and merge them into one hashmap
 [data1, materials1] = icra17_load(DATADIR, '20161229', flowtype, @(x) false);
 [data2, materials2] = icra17_load(DATADIR, '20170109', flowtype, @(x) false);
 materials = [materials1 materials2];
@@ -154,13 +154,13 @@ for m=1:length(materials)
     
     % how to find a tap
     % 1. take median of Z position
-    % 2. find first point where Z position goes 5mm above median
+    % 2. find first point where Z position goes 6mm above median (6mm threshold empirically determined)
     % 3. tap starts at the first point after that where the Z derivative goes negative
     % 4. tap continues through the first point after that where the Z derivative goes positive
     % 5. tap stops at the first point after that where the Z derivative goes negative
     st = nanmedian(d.bvei(:,4));
     p0 = find(d.bvei(:,4) < st, 1);
-    p1 = find(d.bvei(p0:end,4) > st+5, 1) + p0;
+    p1 = find(d.bvei(p0:end,4) > st+6, 1) + p0;
     p2 = find(diff(d.bvei(p1:end,4)) < 0, 1) + p1;
     p3 = find(diff(d.bvei(p2:end,4)) > 0, 1) + p2;
     p4 = find(diff(d.bvei(p3:end,4)) < 0, 1) + p3;
@@ -169,21 +169,25 @@ for m=1:length(materials)
     mov = [1 p1];
     
     fprintf('mov=(%.1f,%.1f) imp=(%.1f,%.1f) ', mov(1)/3000, mov(2)/3000, imp(1)/3000, imp(2)/3000);
+
+    % calculate Romano + Steinbach features at three window lengths
     
-    wins = [.05 .25 1.25 6.25]*3000;
+    wins = [.05 .25 1.25]*3000;
     d.romano = cell(1, length(wins));
     d.steinbach = cell(1, length(wins));
 
     for w=1:length(wins)
         fprintf('%d', wins(w));
         
+        % romano_features operates on the whole episode and choose chunks
+        % it returns the chosen chunks so we can use exactly the same ones for steinbach_features
         [pre, chunks] = romano_features('pre', d.biws, d.bvei, d.bai, mass, wins(w), 0, mov);
         d.romano{w} = pre;
         fprintf('r');
 
-        % FIXME need wavelet toolbox for TR
-        feats = {'MF', 'TR', 'SR', 'WV', 'SP', 'F', 'RG', 'Fr', 'FM'};
+        feats = {'MF', 'TR', 'SR', 'WV', 'SP', 'F', 'RG', 'Fr', 'FM'}; % all the AMxx features
         d.steinbach{w} = zeros(size(chunks,1), length(feats) + 12*any(strcmp(feats, 'MF')));
+        % steinbach_features operates on one chunk at a time
         for i=1:size(chunks,1)
             mov_i = mov(1) + chunks(i,:);
             f = steinbach_features(feats, hac, imp, mov_i, struct('data', dft321(d.bai(:,2:4)), 'Fs', 3000), struct('data', sqrt(sum(d.biws(:,2:3).^2,2)), 'Fs', 3000), []);
@@ -197,38 +201,10 @@ for m=1:length(materials)
     fprintf('done!\n');
 end
 
-%% analyze feature distributions
+%% train/test split
 
-for m=1:length(materials)
-    d = data(materials{m});
-    d.rr2 = [];
-    d.sr2 = [];
-    d.mean_rr2 = [];
-    d.mean_sr2 = [];
-    
-    for w=1:length(wins)
-        r = d.romano{w};
-        s = d.steinbach{w};
-        rr2 = [];
-        sr2 = [];
-        for i=1:size(s,2)
-            [~,~,~,~,stats] = regress(s(:,i), [r(:,[end-5 end-3]) ones(size(r,1),1)]);
-            sr2(end+1) = stats(1);
-        end
-        for i=1:size(r,2)
-            [~,~,~,~,stats] = regress(r(:,i), [r(:,[end-5 end-3]) ones(size(r,1),1)]);
-            rr2(end+1) = stats(1);
-        end
-        d.rr2(end+1,:) = rr2;
-        d.sr2(end+1,:) = sr2;
-        d.mean_rr2(end+1) = nanmean(rr2);
-        d.mean_sr2(end+1) = nanmean(sr2);
-    end
-    
-    data(materials{m}) = d;
-end
-
-%% try ICRA stuff with steinbach features added
+% Create 80% train/20% test splits for each window length.
+% outputs: labels{}, features{}, split_idx{}
 
 labels = {};
 features = {};
@@ -246,113 +222,169 @@ for w=1:length(wins)
     split_idx{w} = randsample(1:2, length(labels{w}), true, [4/5 1/5]);
 end
 
-%%
+%% grid searches
+
+% grid search at every window length to find the best hyperparameters for Romano-only, Steinbach-only, and combined
+% gs_acc{w} is a 1x3 matrix with the index of the maximum grid search accuracy for [R, S, R+S] resp.
     
-nbins = 10;
-binmode = 'naive';
-alpha = 0.2;
-nu = 0.1;
-gamma = 1;
+nbins = [3 5 10];
+binmode = {'naive' 'perceptual'};
+alpha = [0.2 0.3 0.4];
+nu = [0.05 0.1 0.15];
+gamma = [1 10];
 
-rconfusion = cell(length(wins), 1);
-sconfusion = cell(length(wins), 1);
-rsconfusion = cell(length(wins), 1);
-
+gs_acc = cell(1,length(wins));
 for w=1:length(wins)
-    train_features = [romano_features('post', features{w}{1}(split_idx{w}==1,:), nbins, binmode, alpha, 1) features{w}{2}(split_idx{w}==1,:)];
-    train_labels = labels{w}(split_idx{w}==1,:);
-    test_features = [romano_features('post', features{w}{1}(split_idx{w}==2,:), nbins, binmode, alpha, 1) features{w}{2}(split_idx{w}==2,:)];
-    test_labels = labels{w}(split_idx{w}==2,:);
-    
-    trainmean = mean(train_features);
-    trainrange = range(train_features);
-    train_vectors = bsxfun(@rdivide, bsxfun(@minus, train_features, trainmean), trainrange);
-    test_vectors = bsxfun(@rdivide, bsxfun(@minus, test_features, trainmean), trainrange);
-    
-    model = svmtrain(train_labels, train_vectors(:,1:end-21), sprintf('-m 1000 -s 1 -t 2 -n %g -g %g -q', nu, gamma));
-    answers = svmpredict(zeros(size(test_labels)), test_vectors(:,1:end-21), model, '-q');
-    rconfusion{w} = zeros(length(materials));
-    for i=1:length(materials)
-        for j=1:length(materials)
-            rconfusion{w}(i,j) = nnz(answers(test_labels == i) == j);
-        end
-    end
-    fprintf('Test set accuracy (win=%d, r): %g\n', wins(w), sum(diag(rconfusion{w}))/sum(sum(rconfusion{w})));
-
-    model = svmtrain(train_labels, train_vectors(:,end-20:end), sprintf('-m 1000 -s 1 -t 2 -n %g -g %g -q', nu, gamma));
-    answers = svmpredict(zeros(size(test_labels)), test_vectors(:,end-20:end), model, '-q');
-    sconfusion{w} = zeros(length(materials));
-    for i=1:length(materials)
-        for j=1:length(materials)
-            sconfusion{w}(i,j) = nnz(answers(test_labels == i) == j);
-        end
-    end
-    fprintf('Test set accuracy (win=%d, s): %g\n', wins(w), sum(diag(sconfusion{w}))/sum(sum(sconfusion{w})));
-
-    model = svmtrain(train_labels, train_vectors, sprintf('-m 1000 -s 1 -t 2 -n %g -g %g -q', nu, gamma));
-    answers = svmpredict(zeros(size(test_labels)), test_vectors, model, '-q');
-    rsconfusion{w} = zeros(length(materials));
-    for i=1:length(materials)
-        for j=1:length(materials)
-            rsconfusion{w}(i,j) = nnz(answers(test_labels == i) == j);
-        end
-    end
-    fprintf('Test set accuracy (win=%d, r+s): %g\n', wins(w), sum(diag(rsconfusion{w}))/sum(sum(rsconfusion{w})));
+    gs_acc{w} = whc17_grid(materials, labels{w}, features{w}, split_idx{w}, nbins, binmode, alpha, nu, gamma);
 end
 
-%% confusion matrix figures
+%% analyze feature distributions
 
-rconf = figure;
-imagesc(rconfusion{2});
-colormap gray;
-print -dpng rconf.png
+% Analyzes the correlation between scan-time parameters and each Romano/Steinbach feature.
+% The scan-time parameters are mean normal force and mean tip speed, which are at end-5 and end-3 of the Romano feature vector.
+% For analysis, we recalculate the Romano features with the best parameters found via grid search.
 
-sconf = figure;
-imagesc(sconfusion{2});
-colormap gray;
-print -dpng sconf.png
-
-%% print out results
-
-fprintf('FEATURE SENSITIVITY TABLES\n');
-fprintf('    \\begin{tabular}{c|ccccccccccc}\n');
-fprintf('        Surface & Bin 1 & Bin 2 & Bin 3 & Bin 4 & Bin 5 & $\\overline{F_n}$ & $\\sigma(F_n)$ & $\\overline{v}$ & $\\sigma(v)$ & $\\overline{F_t}$ & $\\sigma(F_t)$ \\\\\n');
-fprintf('        \\hline\n');
-all_rr2 = [];
 for m=1:length(materials)
     d = data(materials{m});
+    d.rr2 = [];
+    d.sr2 = [];
+    d.mean_rr2 = [];
+    d.mean_sr2 = [];
     
-    fprintf('        %s', materials{m});
-    for j=1:11
-        fprintf(' & %.4f ', d.rr2(2,j));
-    end
-    fprintf('\\\\\n');
-    all_rr2 = [all_rr2; d.rr2(2,:)];
-end
-fprintf('        \\emph{mean}');
-for j=1:11
-    fprintf(' & %.4f ', mean(all_rr2(:,j)));
-end
-fprintf('\\\\\n');
-fprintf('    \\end{tabular}\n');
+    for w=1:length(wins)
+        % recalculate using grid search results
+        [~,gsi] = max(gs_acc{w}(:,1));
+        gp = grid_params(gsi,:);
+        r = romano_features('post', d.romano{w}, nbins(gp(1)), binmode{gp(2)}, alpha(gp(3)), 1);
+        s = d.steinbach{w};
 
-fprintf('    \\begin{tabular}{c|ccccccccc}\n');
-fprintf('        Surface & AMCC & AMTR & AMSR & AMWV & AMSP & AMF & AMRG & Fr & FM \\\\\n');
-fprintf('        \\hline\n');
-all_sr2 = [];
-for m=1:length(materials)
-    d = data(materials{m});
-    
-    fprintf('        %s & %.4f', materials{m}, mean(d.sr2(2,1:13)));
-    for j=14:21
-        fprintf(' & %.4f ', d.sr2(2,j));
+        % calculate correlation of each feature
+        rr2 = [];
+        sr2 = [];
+        for i=1:size(s,2)
+            [~,~,~,~,stats] = regress(s(:,i), [r(:,[end-5 end-3]) ones(size(r,1),1)]);
+            sr2(end+1) = stats(1);
+        end
+        for i=1:size(r,2)
+            [~,~,~,~,stats] = regress(r(:,i), [r(:,[end-5 end-3]) ones(size(r,1),1)]);
+            rr2(end+1) = stats(1);
+        end
+
+        % store back to hashmap
+        d.rr2(end+1,:) = rr2;
+        d.sr2(end+1,:) = sr2;
+        d.mean_rr2(end+1) = nanmean(rr2);
+        d.mean_sr2(end+1) = nanmean(sr2);
     end
-    fprintf('\\\\\n');
-    all_sr2 = [all_sr2; mean(d.sr2(2,1:13)) d.sr2(2,14:end)];
+    
+    data(materials{m}) = d;
 end
-fprintf('        \\emph{mean}');
-for j=1:9
-    fprintf(' & %.4f ', mean(all_sr2(:,j)));
+
+%% evaluate best models and make figures
+
+rconfusion = cell(1,length(wins));
+sconfusion = cell(1,length(wins));
+rsconfusion = cell(1,length(wins));
+
+grid_params = prepare_grid(nbins, binmode, alpha, nu, gamma);
+
+for i=1:length(wins)
+    [~,gsi] = max(gs_acc{i}(:,1));
+    gp = grid_params(gsi,:);
+    fprintf('ROMANO %d: n=%d bins=%s α=%g ν=%g ɣ=%g\n', i, nbins(gp(1)), binmode{gp(2)}, alpha(gp(3)), nu(gp(4)), gamma(gp(5)));
+    rconfusion{i} = whc17_test(materials, wins, features, labels, split_idx, i, 'romano', nbins(gp(1)), binmode{gp(2)}, alpha(gp(3)), nu(gp(4)), gamma(gp(5)), sprintf('rconf%d.pdf', i));
+
+    [~,gsi] = max(gs_acc{i}(:,2));
+    gp = grid_params(gsi,:);
+    fprintf('STEINBACH %d: n=%d bins=%s α=%g ν=%g ɣ=%g\n', i, nbins(gp(1)), binmode{gp(2)}, alpha(gp(3)), nu(gp(4)), gamma(gp(5)));
+    sconfusion{i} = whc17_test(materials, wins, features, labels, split_idx, i, 'steinbach', nbins(gp(1)), binmode{gp(2)}, alpha(gp(3)), nu(gp(4)), gamma(gp(5)), sprintf('sconf%d.pdf', i));
+
+    [~,gsi] = max(gs_acc{i}(:,3));
+    gp = grid_params(gsi,:);
+    fprintf('BOTH %d: n=%d bins=%s α=%g ν=%g ɣ=%g\n', i, nbins(gp(1)), binmode{gp(2)}, alpha(gp(3)), nu(gp(4)), gamma(gp(5)));
+    rsconfusion{i} = whc17_test(materials, wins, features, labels, split_idx, i, 'both', nbins(gp(1)), binmode{gp(2)}, alpha(gp(3)), nu(gp(4)), gamma(gp(5)), sprintf('rsconf%d.pdf', i));
 end
-fprintf('\\\\\n');
-fprintf('    \\end{tabular}\n');
+
+%% first five as in ICRA
+
+% this was done as a sanity check to see the Romano-only classifier was working at all
+% it just runs a classifier on the first five surfaces using the parameters from the ICRA paper
+% the result was 80% accuracy, so I conclude that the Romano-only classifier is working, but just doesn't scale to 28 surfaces
+
+materials5 = materials(1:5);
+features5 = features;
+labels5 = labels;
+split_idx5 = split_idx;
+
+for i=1:length(wins)
+    last = find(labels{i} > 5, 1) - 1;
+    features5{i}{1} = features{i}{1}(1:last,:);
+    features5{i}{2} = features{i}{2}(1:last,:);
+    labels5{i} = labels{i}(1:last);
+    split_idx5{i} = split_idx{i}(1:last);
+end
+
+whc17_test(materials5, wins, features5, labels5, split_idx5, 1, 'romano', 20, 'perceptual', .3, .15, 10, 'fig.pdf');
+
+%% feature correlation figures
+
+% visualizes the results of the feature correlation calculations using imagesc
+
+% collect values out of the hashmap
+featsens = cell(length(wins),2);
+for w=1:3
+    featsens{w,1} = zeros(length(materials), 16);
+    featsens{w,2} = zeros(length(materials), 9);
+
+    for m=1:length(materials)
+        d = data(materials{m});
+        featsens{w,1}(m,:) = d.rr2(w,:);
+    end
+    for m=1:length(materials)
+        d = data(materials{m});
+        featsens{w,2}(m,:) = [mean(d.sr2(w,1:13)) d.sr2(w,14:end)];
+    end
+end
+
+% make figures
+for w=1:length(wins)
+    % ROMANO FIGURE
+    imagesc([featsens{w,1}; mean(featsens{w,1})]);
+    colormap(flipud(gray));
+    ax = gca;
+    ax.XTick = 1:size(featsens{w,1},2);
+    ax.XTickLabel = [];
+    xticklabels = [arrayfun(@(n) sprintf('Bin %d', n), 1:(size(featsens{w,1},2)-6), 'uniformoutput',false) {'$\overline{F_n}$' '$\sigma(F_n)$' '$\overline{v}$' '$\sigma(v)$' '$\overline{F_t}$' '$\sigma(F_t)$'}];
+    for i=1:length(xticklabels)
+        text(i, ax.YLim(2) + 0.5, xticklabels{i}, 'interpreter','latex', 'horizontalalignment','right', 'rotation',90);
+    end
+    ax.XTickLabelRotation = 90;
+    ax.YTick = 1:(size(featsens{w,1},1)+1);
+    ax.YTickLabel = [materials 'mean'];
+    ax.FontName = 'Courier';
+    xl = xlabel('Feature', 'fontname','arial', 'fontsize',16);
+    xly = xl.Position(2) + 3;
+    xl.Position(2) = xly;
+    ylabel('Surface', 'fontname','arial', 'fontsize',16);
+    print('-dpdf', sprintf('rsens%d.pdf', w));
+
+    % STEINBACH FIGURE
+    imagesc([featsens{w,2}; mean(featsens{w,2})]);
+    colormap(flipud(gray));
+    ax = gca;
+    ax.XTick = 1:size(featsens{w,2},2);
+    ax.XTickLabel = {'AMCC' 'AMTR' 'AMSR' 'AMWV' 'AMSP' 'AMF' 'AMRG' 'Fr' 'FM'};
+    ax.XTickLabelRotation = 90;
+    ax.YTick = 1:(size(featsens{w,2},1)+1);
+    ax.YTickLabel = [materials 'mean'];
+    ax.FontName = 'Courier';
+    xl = xlabel('Feature', 'fontname','arial', 'fontsize',16);
+    xl.Position(2) = xly;
+    ylabel('Surface', 'fontname','arial', 'fontsize',16);
+    print('-dpdf', sprintf('ssens%d.pdf', w));
+end
+
+%% replicate steinbach results
+
+steinbach_classifier
+

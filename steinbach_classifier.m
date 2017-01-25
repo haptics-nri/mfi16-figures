@@ -66,6 +66,7 @@ end
 
 %% train
 
+% all the features that I implemented!
 feats = {'MF', 'H', 'SC', 'TR', 'SR', 'WV', 'SP', 'F', 'RG', 'Fr', 'FM', 'SIH', 'SILH', 'SISR', 'SISH', 'SISS'};
 
 if ~exist('train_episodes', 'var')
@@ -75,52 +76,79 @@ end
 for i=1:length(train_episodes)
     fprintf('Calculating features for training episode %d/%d... ', i, length(train_episodes));
     t = tic;
-    train_episodes(i).features = steinbach_features(feats, train_episodes(i));
+    train_episodes(i).features = steinbach_features(feats, [],[],[], train_episodes(i));
     fprintf('%g s\n', toc(t));
 end
+dbclear if infnan;
 
-%% test
+%% SVM cross-validation
 
-%% divide training set
-train_features = [];
-val_features = [];
-train_labels = [];
-val_labels = [];
-for i = 1:length(train_episodes)/10
-    d = randsample(10, 7);
-    ti = (i-1)*10 + d;
-    vi = (i-1)*10 + setdiff(1:10, d);
-    train_features = [train_features; cell2mat({train_episodes(ti).features}')];
-    val_features = [val_features; cell2mat({train_episodes(vi).features}')];
-    train_labels = [train_labels cellfun(@(m) find(strcmp(m, materials), 1), {train_episodes(ti).material})];
-    val_labels = [val_labels cellfun(@(m) find(strcmp(m, materials), 1), {train_episodes(vi).material})];
-end
-
-%% I dunno try a fucking SVM I guess
-train_features(isnan(train_features)) = 0;
-val_features(isnan(val_features)) = 0;
-trainmean = mean(train_features);
-train_vectors = bsxfun(@minus, ...
-                       train_features, ...
-                       trainmean);
-val_vectors   = bsxfun(@minus, ...
-                       val_features  , ...
-                       trainmean);
-trainrange = range(train_vectors);
-train_vectors = bsxfun(@rdivide, ...
-                       train_vectors, ...
-                       trainrange);
-val_vectors   = bsxfun(@rdivide, ...
-                       val_vectors  , ...
-                       trainrange);
-
-model = svmtrain(train_labels', train_vectors, '-m 1000 -s 1 -t 2 -n 0.1 -g 0.5 -q');
-answers = svmpredict(zeros(size(val_labels')), val_vectors, model, '-q');
-confusion = zeros(length(materials));
-for i=1:length(materials)
-    for j=1:length(materials)
-        confusion(i,j) = nnz(answers(val_labels == i) == j);
+% construct CV splits by leaving out one recording in each split
+train_features = cell(10,1);
+train_labels = cell(10,1);
+val_features = cell(10,1);
+val_labels = cell(10,1);
+% i: CV split (1..10)
+% j: material (1..69)
+% k: recording (1..10)
+for i=1:10
+    train_features{i} = [];
+    val_features{i} = [];
+    for j=1:length(train_episodes)/10
+        for k=1:10
+            idx = (j-1)*10 + k;
+            if k == i % in CV split #i, leave out the i'th recording of each material
+                val_features{i} = [val_features{i}; train_episodes(idx).features];
+                val_labels{i} = [val_labels{i}; find(strcmp(train_episodes(idx).material, materials), 1)];
+            else
+                train_features{i} = [train_features{i}; train_episodes(idx).features];
+                train_labels{i} = [train_labels{i}; find(strcmp(train_episodes(idx).material, materials), 1)];
+            end
+        end
     end
 end
-fprintf('Test set accuracy: %g\n', sum(diag(confusion))/sum(sum(confusion)));
+
+cvacc = zeros(1,10);
+confusion = cell(1,10);
+for s=1:10
+    fprintf('cv %d/10\n', s);
+    trainmean = mean(train_features{s});
+    train_vectors = bsxfun(@minus, ...
+                           train_features{s}, ...
+                           trainmean);
+    val_vectors   = bsxfun(@minus, ...
+                           val_features{s}  , ...
+                           trainmean);
+    trainrange = range(train_vectors);
+    train_vectors = bsxfun(@rdivide, ...
+                           train_vectors, ...
+                           trainrange);
+    val_vectors   = bsxfun(@rdivide, ...
+                           val_vectors  , ...
+                           trainrange);
+
+    model = svmtrain(train_labels{s}, train_vectors, '-m 1000 -s 1 -t 2 -n 0.1 -g 0.5 -q');
+    answers = svmpredict(zeros(size(val_labels{s})), val_vectors, model, '-q');
+    confusion{s} = zeros(length(materials));
+    for i=1:length(materials)
+        for j=1:length(materials)
+            confusion{s}(i,j) = nnz(answers(val_labels{s} == i) == j);
+        end
+    end
+    cvacc(s) = sum(diag(confusion{s}))/sum(sum(confusion{s}));
+end
+
+fprintf('Average CV accuracy: %g\n', mean(cvacc));
+
+%% plot results
+
+% ridiculous reshaping to average the confusion matrices across CV splits
+confall = cell2mat(cellfun(@(c) reshape(c, [69 1 69]), confusion, 'uniformoutput',false));
+confavg = reshape(sum(confall, 2)/10, [69 69]);
+
+% draw figure
+% cut off "Gx" prefix for figure labels and remove tick marks
+fig_confusion(confavg, cellfun(@(s) s(3:end), materials, 'uniformoutput',false), 5, 'Courier', 90, false);
+set(gca, 'TickLength', [0 0]);
+print -dpdf cvconf.pdf;
 

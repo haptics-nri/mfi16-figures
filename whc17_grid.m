@@ -1,25 +1,18 @@
+% Grid search for WHC 17
 function gs_acc = whc17_grid(materials, labels, features, split_idx, nbins, binmode, alpha, nu, gamma)
 
+    % pull out training set
     labels = labels(split_idx==1);
     features{1} = features{1}(split_idx==1, :);
     features{2} = features{2}(split_idx==1, :);
     
+    % prepare cross validation
     cv = cvpartition(labels, 'KFold', 3);
     
-    gs_limits = [length(nbins) length(binmode) length(alpha) length(nu) length(gamma)];
-    gs_idx = repmat(ones(size(gs_limits)), prod(gs_limits), 1);
-    for i=2:size(gs_idx,1)
-        gs_idx(i,:) = gs_idx(i-1,:);
-        for j=size(gs_idx,2):-1:1
-            if gs_idx(i,j) == gs_limits(j)
-                gs_idx(i,j) = 1;
-            else
-                gs_idx(i,j) = gs_idx(i,j) + 1;
-                break;
-            end
-        end
-    end
+    % prepare grid search
+    gs_idx = prepare_grid(nbins, binmode, alpha, nu, gamma);
     
+    % execute grid search!
     gs_acc = zeros(size(gs_idx,1),3);
     clear romano_features; % clear persistent vars
     elapsed = tic;
@@ -58,6 +51,7 @@ function gs_acc = whc17_grid(materials, labels, features, split_idx, nbins, binm
 
             mc_train_args = sprintf('-m 1000 -s 1 -t 2 -n %g -g %g -q', gs_nu, gs_gamma);
 
+            % Romano-only, Steinbach-only, and both
             slen = size(features{2}(cv.training(cvi),:), 2);
             cv_acc(cvi,1) = do_cv(train_labels, train_vectors(:,1:end-slen), val_labels, val_vectors(:,1:end-slen), materials, mc_train_args);
             cv_acc(cvi,2) = do_cv(train_labels, train_vectors(:,end-slen+1:end), val_labels, val_vectors(:,end-slen+1:end), materials, mc_train_args);

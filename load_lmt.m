@@ -39,6 +39,12 @@ function [accel, friction, sound] = load_lmt(datadir, traintest, label, id)
         accel = load_1d(fullfile(datadir, 'Testing', 'AccelScansDFT321'), NAMES{row,4}{1}, id);
         friction = load_1d(fullfile(datadir, 'Testing', 'FricScans'), sprintf('%s_Friction', NAMES{row,5}{1}), id);
         sound = load_wav(fullfile(datadir, 'Testing', 'SoundScans'), sprintf('%s_Sound', NAMES{row,6}{1}), id);
+
+        % add freehand tapping
+        x = load(fullfile(datadir, 'Testing', 'AccelScansComponents', 'FreehandTapping', sprintf('%s_%s.mat', NAMES{row,4}{1}, id)));
+        accel = struct('data', accel.data, 'Fs', accel.Fs, 'tap', x.tmp);
+        x = load(fullfile(datadir, 'Testing', 'SoundScans', 'FreehandTapping', sprintf('%s_%s.mat', NAMES{row,6}{1}, id)));
+        sound = struct('data', sound.data, 'Fs', sound.Fs, 'tap', x.tmp);
     end
 
 end

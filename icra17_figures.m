@@ -98,10 +98,10 @@ freecalib.t = t;
 %% end-effector weighing
 
 date = '20160811';
-[~,f] = load_stick([DATADIR filesep date filesep 'weigh/1/']);
-[c,r] = sphereFit_ransac(f(:,2:4)); % 98.9% inliers
-
-mass = r/9.81;
+load mini40_calib
+[mass, fbias, ~, com, tbias] = weigh({fullfile(DATADIR, date, 'weigh', '1')});
+tbias = tbias';
+save mini40_calib fbias tbias;
 
 %% process calibrations: use d+R to calculate x+y+z for H_vic2bod + H_bal2imu
 
@@ -221,8 +221,10 @@ all_grid;
 
 %% confusion matrices -- first set gsi to optimal and run the test set
 
-fig_confusion(conf14vp, 'icra17_confusion_precision_vicon.pdf');
-fig_confusion(conf38bn, 'icra17_confusion_precision_bluefox.pdf');
+fig_confusion(conf14vp, {'ABS', 'glitter paper', 'silk', 'vinyl', 'wood'}, 14, 'Arial', 0, true);
+print -dpdf icra17_confusion_precision_vicon.pdf;
+fig_confusion(conf38bn, {'ABS', 'glitter paper', 'silk', 'vinyl', 'wood'}, 14, 'Arial', 0, true);
+print -dpdf icra17_confusion_precision_bluefox.pdf;
 
 %% accelerometer comparison figure
 

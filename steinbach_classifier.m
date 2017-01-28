@@ -148,7 +148,7 @@ confavg = reshape(sum(confall, 2)/10, [69 69]);
 
 % draw figure
 % cut off "Gx" prefix for figure labels and remove tick marks
-fig_confusion(confavg, cellfun(@(s) s(3:end), materials, 'uniformoutput',false), 5, 'Courier', 90, false);
+fig_confusion(confavg, cellfun(@(s) s(3:end), materials, 'uniformoutput',false), 5, 'Courier', 90, 0, false);
 set(gca, 'TickLength', [0 0]);
 print -dpdf cvconf.pdf;
 

@@ -5,6 +5,7 @@
 
 addpath(genpath('RANSAC-Toolbox'))
 addpath('libsvm/matlab')
+addpath(genpath('geom3d'));
 
 DATADIR = '../data';
 
@@ -221,14 +222,14 @@ all_grid;
 
 %% confusion matrices -- first set gsi to optimal and run the test set
 
-fig_confusion(conf14vp, {'ABS', 'glitter paper', 'silk', 'vinyl', 'wood'}, 14, 'Arial', 0, true);
+fig_confusion(conf14vp, {'ABS', 'glitter paper', 'silk', 'vinyl', 'wood'}, 14, 'Arial', 0, 0.15, true);
 print -dpdf icra17_confusion_precision_vicon.pdf;
-fig_confusion(conf38bn, {'ABS', 'glitter paper', 'silk', 'vinyl', 'wood'}, 14, 'Arial', 0, true);
+fig_confusion(conf38bn, {'ABS', 'glitter paper', 'silk', 'vinyl', 'wood'}, 14, 'Arial', 0, 0.15, true);
 print -dpdf icra17_confusion_precision_bluefox.pdf;
 
 %% accelerometer comparison figure
 
-[v,f,da,dg,~,a,~,dt,~,~,m] = load_stick('../../nri/data/20160906/stickcam/6/');
+[v,f,da,dg,~,a,~,dt,~,~,m] = load_stick(fullfile(DATADIR, '20160906', 'stickcam', '6'));
 t = cumsum(bitand(dt, 65535))/1e6;
 figure
 plot(t, bsxfun(@minus, a(:,2:4), mean(a(:,2:4))))
@@ -240,12 +241,44 @@ subplot(211)
 axis([9 17 -8 8])
 subplot(212)
 axis([9 17 -8 8])
-xlabel('Time (s)')
-ylabel('Internal accelerometer signal (m/s^2)')
+xlabel('Time (s)', 'FontSize',16)
+ylabel({'Internal accelerometer' 'signal (m/s^2)'}, 'FontSize',16)
 subplot(211)
-xlabel('Time (s)')
-ylabel('External accelerometer signal (m/s^2)')
+xlabel('Time (s)', 'FontSize',16)
+ylabel({'External accelerometer' 'signal (m/s^2)'}, 'FontSize',16)
 print -dpdf -r0 icra17_accel_compare.pdf
+
+%% motrak comparison figure
+
+[v,~,~,~,~,~,~,~,~,~,m] = load_stick(fullfile(DATADIR, '20160906', 'stickcam', '6'));
+off = [16.028 1814 127]; % 20160906-6
+%off = [7.825 817 34]; % 20160712-1
+tf = xfconv(v(off(2),2:7)) / xfconv(m(off(3),2:7));
+for i=1:size(m,1)
+    m(i,2:7) = xfconv(tf * xfconv(m(i,2:7)));
+    m(i,[7 6 5]) = rotation3dToEulerAngles(xfconv(m(i,5:7)))*pi/180;
+end
+for i=1:size(v,1)
+    v(i,[7 6 5]) = rotation3dToEulerAngles(xfconv(v(i,5:7)))*pi/180;
+end
+v(:,5:7) = filter(ones(5,1)/5, 1, v(:,5:7));
+subplot(211);
+plot(v(:,1) - v(1,1), v(:,2:4), m(:,1) - v(1,1) + off(1), m(:,2:4));
+legend('X (Vicon)', 'Y (Vicon)', 'Z (Vicon)', 'X (Camera)', 'Y (Camera)', 'Z (Camera)', 'location','east');
+xlabel('Time (s)', 'Fontsize',16);
+ylabel('Position (mm)', 'Fontsize',16);
+axis tight;
+ax = axis;
+axis([ax(1:2) ax(3)-100 ax(4)+100]);
+subplot(212);
+plot(v(:,1) - v(1,1), v(:,5:7), m(:,1) - v(1,1) + off(1), m(:,5:7));
+legend('Roll (Vicon)', 'Pitch (Vicon)', 'Yaw (Vicon)', 'Roll (Camera)', 'Pitch (Camera)', 'Yaw (Camera)', 'location','east');
+xlabel('Time (s)', 'Fontsize',16);
+ylabel('Euler angles (rad)', 'Fontsize',16);
+axis tight;
+ax = axis;
+axis([ax(1:2) ax(3)-.5 ax(4)+.5]);
+print -dpdf icra17_vicon_pnp.pdf;
 
 %% feature vector figure
 
@@ -255,6 +288,7 @@ if dosub
 end
 
 % sample data
+clear d set;
 d1 = data38('abs');
 d1.vel = pose_to_vel(d1.vei, d1.iws);
 d1.a = 47200;
@@ -320,7 +354,7 @@ for i=1:2
     axis([d{i}.iws(d{i}.a,1)-d{i}.iws(1,1) d{i}.iws(d{i}.b,1)-d{i}.iws(1,1) -15 30]);
     set(gca, 'XTick', round(d{i}.iws(d{i}.a + (225:450:1499)',1) - d{i}.iws(1,1), 2));
     legend(datums([1 2 4 3]), 'Normal force (N)', 'Tangential force (N)', 'Tip speed (cm/s)', 'Acceleration (cm/s^2)', 'location','northeast');
-    xlabel('Time (s)');
+    xlabel('Time (s)', 'FontSize',16);
     box on;
     if ~dosub
         print('-dpdf', sprintf('icra17_fv_%d_1.pdf', i));
@@ -343,7 +377,7 @@ for i=1:2
     box off;
     sub.XTick = 1:10;
     sub.YTickLabel = [];
-    xlabel('Feature vectors');
+    xlabel('Feature vectors', 'FontSize',16);
     sub.XRuler.Axle.Visible = 'off';
     sub.YRuler.Axle.Visible = 'off';
     labels = repmat({''}, [1 5]);
@@ -369,3 +403,34 @@ if ~dosub
     colormap jet;
     print -dpdf icra17_fv_colorbar.pdf;
 end
+
+%% histograms
+
+force14 = cell2mat(cellfun(@(f) f(:,3), features14(:,4), 'uniformoutput',false));
+force38 = cell2mat(cellfun(@(f) f(:,3), features38(:,4), 'uniformoutput',false));
+
+% manually picked limits
+flim = [0 35];
+slim = [0 200];
+
+lbl = @(diam, val, units) {
+    ylabel('Incidence');
+    xlabel(sprintf('%s (%s)', val, units));
+    title(sprintf('%s (%s end-effector)', val, diam));
+};
+
+%figure;
+subplot(221);
+histogram(force14(force14 > flim(1) & force14 < flim(2)), 50);
+lbl('6.35 mm', 'Normal force', 'N');
+subplot(223);
+histogram(force38(force38 > flim(1) & force38 < flim(2)), 50);
+lbl('9.525 mm', 'Normal force', 'N');
+subplot(222);
+histogram(speed14(speed14 > slim(1) & speed14 < slim(2)), 50);
+lbl('6.35 mm', 'Tip speed', 'mm/s');
+subplot(224);
+histogram(speed38(speed38 > slim(1) & speed38 < slim(2)), 50);
+lbl('9.525 mm', 'Tip speed', 'mm/s');
+
+%print -dpdf icra17_histograms.pdf

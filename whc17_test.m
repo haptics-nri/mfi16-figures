@@ -35,7 +35,7 @@ function [confusion, model] = whc17_test(materials, wins, features, labels, spli
 
     fprintf('Plotting...\n');
     conf = figure;
-    fig_confusion(confusion, materials, 10, 'Courier', 90, false);
+    fig_confusion(confusion, materials, 10, 'Courier', 90, 0, false);
     grid on;
     print('-dpdf', filename);
 end

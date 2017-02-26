@@ -1,4 +1,4 @@
-function [v, int, dig_acc, dig_gyro, mic, ana_acc, mag, dt, opto, bio, motrak] = load_stick(prefix)
+function [v, int, dig_acc, dig_gyro, mic, ana_acc, mag, dt, opto, bio, motrak, calib] = load_stick(prefix, calib)
 %v, vicon (x, y, z, rotation)
 %int force (internal midi40)
 %dig_acc and dig_gyro: IMU data
@@ -46,7 +46,11 @@ function [v, int, dig_acc, dig_gyro, mic, ana_acc, mag, dt, opto, bio, motrak] =
                       {'Timestamp', 'MagX', 'MagY', 'MagZ'});
 
         % unpack raw sensor data
-        [int, mic, ana_acc] = process_mini40(accref, int);%, zeros(1,6), eye(6,6));
+        if nargin == 2
+            [int, mic, ana_acc] = process_mini40(accref, int, [calib.fbias calib.tbias]);
+        else
+            [int, mic, ana_acc] = process_mini40(accref, int);
+        end
         dig_acc = unfifo(acc);
         dig_gyro = unfifo(gyro);
         

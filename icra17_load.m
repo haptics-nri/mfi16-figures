@@ -28,15 +28,21 @@ function [data, materials, calib] = icra17_load(DATADIR, dates, flowtype, lambda
                 continue;
             end
 
-            flow = parse_flow([DATADIR filesep date filesep flowtype filesep episodes(ep).name filesep flowtype '.flow']);
+            flow = parse_flow(fullfile(DATADIR, date, flowtype, episodes(ep).name, [flowtype '.flow']));
             material = flow.answers('surface name').text;
             fprintf('Loading %s (%s)...\n', episodes(ep).name, material);
             [v, int, da,dg,mi, acc, ma, dt, o,b, motrak] = ...
-                load_stick([DATADIR filesep date filesep flowtype filesep episodes(ep).name filesep], varcalib{:});
+                load_stick(fullfile(DATADIR, date, flowtype, episodes(ep).name), varcalib{:});
+            [nums, ids, centers, p1s, p2s, p3s, p4s] = load_april(fullfile(DATADIR, date, flowtype, episodes(ep).name, 'bluefox', 'april.csv'));
+            april = containers.Map('keytype','uint32', 'valuetype','any');
+            for i=1:length(nums)
+                april(nums(i)) = struct('ids',ids{i}, 'centers',centers{i}, 'p1s',p1s{i}, 'p2s',p2s{i}, 'p3s',p3s{i}', 'p4s',p4s{i});
+            end
             data(material) = struct('v',v, 'int',int, 'acc',acc, ...
                                     'imu', struct('acc',da, 'gyro',dg, 'mag',ma, 'mic',mi), ...
                                     'sensor', struct('opto',o, 'bio',b), ...
-                                    'motrak',motrak, 'dt',dt);
+                                    'motrak',motrak, 'dt',dt, ...
+                                    'april', april);
         end
     end
 

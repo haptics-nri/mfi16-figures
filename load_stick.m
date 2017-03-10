@@ -7,7 +7,7 @@ function [v, int, dig_acc, dig_gyro, mic, ana_acc, mag, dt, opto, bio, motrak, c
 %mag: magnatometer (IMU)
 %raw: raw force data (not going to be using this, most likely)
 
-    if length(prefix) > 0 && prefix(end) ~= '/'
+    if ~isempty(prefix) && prefix(end) ~= '/'
         prefix = [prefix '/'];
     end
 

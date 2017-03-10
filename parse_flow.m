@@ -25,7 +25,12 @@ function flow = parse_flow(filename)
                 flow.steps(i).started = stamp;
                 flow.steps(i).actions = struct('name',{}, 'started',{});
             elseif text(1) == '>' % it's an answered question
+                % question without range
                 tokens = regexp(text, '^> "([^"]+)" \["([^"]+)"\]$', 'tokens');
+                if isempty(tokens)
+                    % question with range
+                    tokens = regexp(text, '^> "([^"]+)" \([^)]+\) \[([^\]]+)\]$', 'tokens');
+                end
                 flow.answers(tokens{1}{1}) = struct('text', tokens{1}{2}, 'stamp', stamp);
             elseif text(1) == '"' % it's a message
                 i = length(flow.messages) + 1;

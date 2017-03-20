@@ -2,6 +2,7 @@
 
 addpath(genpath('RANSAC-Toolbox'))
 addpath('libsvm/matlab')
+addpath('../steinbach/htk-mfcc');
 
 DATADIR = '/Volumes/shared/Projects/Proton Pack/Data';
 

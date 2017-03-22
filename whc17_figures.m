@@ -4,7 +4,7 @@ addpath(genpath('RANSAC-Toolbox'))
 addpath('libsvm/matlab')
 addpath('../steinbach/htk-mfcc');
 
-DATADIR = '/Volumes/shared/Projects/Proton Pack/Data';
+DATADIR = '/home/haptics/shared/Projects/Proton Pack/Data';
 
 %% sphere calibration (see go_sphere_again.m)
 
@@ -205,11 +205,11 @@ end
 %% train/test split
 
 % Create 80% train/20% test splits for each window length.
-% outputs: labels{}, features{}, split_idx{}
+% outputs: labels{}, features{}, cv{}
 
 labels = {};
 features = {};
-split_idx = {};
+cv = {};
 for w=1:length(wins)
     labels{w} = [];
     features{w} = {{} []};
@@ -220,13 +220,13 @@ for w=1:length(wins)
         features{w}{2} = [features{w}{2}; d.steinbach{w}];
     end
     
-    split_idx{w} = randsample(1:2, length(labels{w}), true, [4/5 1/5]);
+    cv{w} = cvpartition(length(labels{w}), 'KFold', 5);
 end
 
 %% grid searches
 
 % grid search at every window length to find the best hyperparameters for Romano-only, Steinbach-only, and combined
-% gs_acc{w} is a 1x3 matrix with the index of the maximum grid search accuracy for [R, S, R+S] resp.
+% gs_acc{w} is a KxNx3 matrix: K = outer-CV splits, N = hyperparam combos, 3 = R, S, R+S, values = mean inner-CV accuracy
     
 nbins = [3 5 10];
 binmode = {'naive' 'perceptual'};
@@ -236,7 +236,7 @@ gamma = [1 10];
 
 gs_acc = cell(1,length(wins));
 for w=1:length(wins)
-    gs_acc{w} = whc17_grid(materials, labels{w}, features{w}, split_idx{w}, nbins, binmode, alpha, nu, gamma);
+    gs_acc{w} = whc17_grid(materials, labels{w}, features{w}, cv{w}, nbins, binmode, alpha, nu, gamma);
 end
 
 %% analyze feature distributions
@@ -254,7 +254,13 @@ for m=1:length(materials)
     
     for w=1:length(wins)
         % recalculate using grid search results
-        [~,gsi] = max(gs_acc{w}(:,1));
+
+        % use the mode over CV folds of the best grid indices
+        gsi = zeros(1,cv{w}.NumTestSets);
+        for i=1:cv{w}.NumTestSets
+            [~,gsi] = max(gs_acc{w}(i,:,1));
+        end
+        gsi = mode(gsi);
         gp = grid_params(gsi,:);
         r = romano_features('post', d.romano{w}, nbins(gp(1)), binmode{gp(2)}, alpha(gp(3)), 1);
         s = d.steinbach{w};
@@ -286,46 +292,41 @@ end
 rconfusion = cell(1,length(wins));
 sconfusion = cell(1,length(wins));
 rsconfusion = cell(1,length(wins));
+racc = cell(1,length(wins));
+sacc = cell(1,length(wins));
+rsacc = cell(1,length(wins));
 
 grid_params = prepare_grid(nbins, binmode, alpha, nu, gamma);
 
-for i=1:length(wins)
-    [~,gsi] = max(gs_acc{i}(:,1));
-    gp = grid_params(gsi,:);
-    fprintf('ROMANO %d: n=%d bins=%s α=%g ν=%g ɣ=%g\n', i, nbins(gp(1)), binmode{gp(2)}, alpha(gp(3)), nu(gp(4)), gamma(gp(5)));
-    rconfusion{i} = whc17_test(materials, wins, features, labels, split_idx, i, 'romano', nbins(gp(1)), binmode{gp(2)}, alpha(gp(3)), nu(gp(4)), gamma(gp(5)), sprintf('rconf%d.pdf', i));
+for w=1:length(wins)
+    [rconfusion{w}, racc{w}] = whc17_test(materials, wins(w), features{w}, labels{w}, cv{w}, 'romano', {nbins binmode alpha nu gamma}, grid_params, gs_acc{w}(:,:,1), sprintf('rconf%d.pdf', w));
 
-    [~,gsi] = max(gs_acc{i}(:,2));
-    gp = grid_params(gsi,:);
-    fprintf('STEINBACH %d: n=%d bins=%s α=%g ν=%g ɣ=%g\n', i, nbins(gp(1)), binmode{gp(2)}, alpha(gp(3)), nu(gp(4)), gamma(gp(5)));
-    sconfusion{i} = whc17_test(materials, wins, features, labels, split_idx, i, 'steinbach', nbins(gp(1)), binmode{gp(2)}, alpha(gp(3)), nu(gp(4)), gamma(gp(5)), sprintf('sconf%d.pdf', i));
+    [sconfusion{w}, sacc{w}] = whc17_test(materials, wins(w), features{w}, labels{w}, cv{w}, 'steinbach', {nbins binmode alpha nu gamma}, grid_params, gs_acc{w}(:,:,2), sprintf('sconf%d.pdf', w));
 
-    [~,gsi] = max(gs_acc{i}(:,3));
-    gp = grid_params(gsi,:);
-    fprintf('BOTH %d: n=%d bins=%s α=%g ν=%g ɣ=%g\n', i, nbins(gp(1)), binmode{gp(2)}, alpha(gp(3)), nu(gp(4)), gamma(gp(5)));
-    rsconfusion{i} = whc17_test(materials, wins, features, labels, split_idx, i, 'both', nbins(gp(1)), binmode{gp(2)}, alpha(gp(3)), nu(gp(4)), gamma(gp(5)), sprintf('rsconf%d.pdf', i));
+    [rsconfusion{w}, rsacc{w}] = whc17_test(materials, wins(w), features{w}, labels{w}, cv{w}, 'both', {nbins binmode alpha nu gamma}, grid_params, gs_acc{w}(:,:,3), sprintf('rsconf%d.pdf', w));
 end
 
-%% first five as in ICRA
+%% construct latex table from grid search results
 
-% this was done as a sanity check to see the Romano-only classifier was working at all
-% it just runs a classifier on the first five surfaces using the parameters from the ICRA paper
-% the result was 80% accuracy, so I conclude that the Romano-only classifier is working, but just doesn't scale to 28 surfaces
-
-materials5 = materials(1:5);
-features5 = features;
-labels5 = labels;
-split_idx5 = split_idx;
-
-for i=1:length(wins)
-    last = find(labels{i} > 5, 1) - 1;
-    features5{i}{1} = features{i}{1}(1:last,:);
-    features5{i}{2} = features{i}{2}(1:last,:);
-    labels5{i} = labels{i}(1:last);
-    split_idx5{i} = split_idx{i}(1:last);
+fprintf('\n\nTABLE 1\n\n');
+indent = '            ';
+fprintf('%s\\begin{tabular}{c|cccc}\n', indent);
+fprintf('%s    Window & Scan-dependent (\\%%) & Scan-free (\\%%) & All \\\\\n', indent);
+fprintf('%s    \\hline\n', indent);
+for w=1:length(wins)
+    elem = '$%2.2f~(\\sigma = %1.1f)$';
+    fprintf(['%s    \\units{%1.2f}{s} & ' elem ' & ' elem ' & ' elem], ...
+        indent, wins(w)/3000, ...
+        mean(racc{w})*100, std(racc{w})*100, ...
+        mean(sacc{w})*100, std(sacc{w})*100, ...
+        mean(rsacc{w})*100, std(rsacc{w})*100);
+    if w ~= length(wins)
+        fprintf(' \\\\\n');
+    else
+        fprintf('\n');
+    end
 end
-
-whc17_test(materials5, wins, features5, labels5, split_idx5, 1, 'romano', 20, 'perceptual', .3, .15, 10, 'fig.pdf');
+fprintf('%s\\end{tabular}\n', indent);
 
 %% feature correlation figures
 

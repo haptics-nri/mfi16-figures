@@ -30,6 +30,11 @@ function flow = parse_flow(filename)
                 if isempty(tokens)
                     % question with range
                     tokens = regexp(text, '^> "([^"]+)" \([^)]+\) \[([^\]]+)\]$', 'tokens');
+
+                    if isempty(tokens)
+                        % question with range (buggy format)
+                        tokens = regexp(text, '^> "([^"]+) \([^)]+\)" \[([^\]]+)\]$', 'tokens');
+                    end
                 end
                 flow.answers(tokens{1}{1}) = struct('text', tokens{1}{2}, 'stamp', stamp);
             elseif text(1) == '"' % it's a message
